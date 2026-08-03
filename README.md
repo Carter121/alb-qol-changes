@@ -4,6 +4,13 @@ A Tampermonkey userscript with quality-of-life tweaks for the PINC/Kaleris YMS s
 
 A collapsible sidebar (pull tab on the left edge, or Ctrl/Cmd+B) hosts per-site tweak toggles. Tweaks apply live, persist, and sync across open tabs.
 
+## Installation
+
+1. Install [Tampermonkey](https://www.tampermonkey.net/) in your browser.
+2. [Click here to install the userscript](https://carter121.github.io/alb-qol-changes/alb-qol-changes.user.js).
+
+The script updates automatically via Tampermonkey when a new version is published.
+
 ## Commands
 
 | Command       | What it does                                                |

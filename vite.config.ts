@@ -21,6 +21,11 @@ export default defineConfig({
         icon: "https://www.google.com/s2/favicons?sz=64&domain=albertsons.com",
         namespace: "com.cartercarling.alb-qol-fixes",
         match: sites.flatMap((site) => [...site.matches]),
+        source: "https://github.com/Carter121/alb-qol-changes",
+        updateURL:
+          "https://carter121.github.io/alb-qol-changes/alb-qol-changes.user.js",
+        downloadURL:
+          "https://carter121.github.io/alb-qol-changes/alb-qol-changes.user.js",
       },
     }),
   ],

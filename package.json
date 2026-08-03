@@ -5,6 +5,7 @@
   "author": "Carter",
   "description": "A collection of QOL changes.",
   "type": "module",
+  "packageManager": "pnpm@10.27.0",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
