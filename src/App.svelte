@@ -42,12 +42,12 @@
           <TweaksGroup {manager} />
         </Sidebar.GroupContent>
       </Sidebar.Group>
-      <Sidebar.Group>
-        <Sidebar.GroupLabel>Check-Ins</Sidebar.GroupLabel>
-        <Sidebar.GroupContent>
-          <p class="text-muted-foreground px-2 text-xs">Recent PINC check-ins will live here.</p>
-        </Sidebar.GroupContent>
-      </Sidebar.Group>
+<!--      <Sidebar.Group>-->
+<!--        <Sidebar.GroupLabel>Check-Ins</Sidebar.GroupLabel>-->
+<!--        <Sidebar.GroupContent>-->
+<!--          <p class="text-muted-foreground px-2 text-xs">Recent PINC check-ins will live here.</p>-->
+<!--        </Sidebar.GroupContent>-->
+<!--      </Sidebar.Group>-->
     </Sidebar.Content>
     <SidebarTab />
   </Sidebar.Root>

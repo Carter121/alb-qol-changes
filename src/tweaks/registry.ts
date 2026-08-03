@@ -1,11 +1,13 @@
 import type { Tweak } from "./types";
 import { checkInNotifications } from "./pinc/check-in-notifications";
+import { keepAwake } from "./pinc/keep-awake";
 import { newCheckInRows } from "./pinc/new-check-in-rows";
 import { tableStriping } from "./pinc/table-striping";
 
 //* Separate from sites.ts so vite.config's import graph stays browser-free.
 const allTweaks: Tweak[] = [
   checkInNotifications,
+  keepAwake,
   newCheckInRows,
   tableStriping,
 ];
