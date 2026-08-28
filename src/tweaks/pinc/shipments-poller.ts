@@ -1,7 +1,7 @@
 import type { CleanupFn } from "../types";
 import { createLogger } from "../helpers";
 
-const REFRESH_INTERVAL = 60_000;
+const REFRESH_INTERVAL = 30_000;
 //* Origin-relative so it works on the local replica and production.
 //* The server scopes results to the user's session filters/tab on its own.
 const SHIPMENTS_URL = "/shipments.json?view_type=arrivals";
