@@ -40,6 +40,13 @@ if (!site) {
   const manager = new TweakManager(tweaksFor(site.id, new URL(location.href)));
   manager.start();
 
+  //* Pages outside uiPattern run tweaks only, no sidebar.
+  if (!site.uiPattern || site.uiPattern.test(location.pathname)) {
+    mountSidebar(manager);
+  }
+}
+
+function mountSidebar(manager: TweakManager): void {
   //* Shadow root keeps the host page's hostile CSS out and our preflight in.
   const host = document.createElement("div");
   host.id = "alb-qol-root";

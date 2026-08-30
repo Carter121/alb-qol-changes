@@ -1,7 +1,7 @@
 {
   "name": "alb-qol-changes",
   "private": true,
-  "version": "0.0.5",
+  "version": "0.0.6",
   "author": "Carter",
   "description": "A collection of QOL changes.",
   "type": "module",

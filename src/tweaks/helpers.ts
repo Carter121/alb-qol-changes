@@ -11,15 +11,22 @@ export const DEBUG = (() => {
   }
 })();
 
+//* Time-only timestamp; ms included since polling makes same-second logs common.
+const timestamp = () => {
+  const d = new Date();
+  const ms = String(d.getMilliseconds()).padStart(3, "0");
+  return `${d.toTimeString().slice(0, 8)}.${ms}`;
+};
+
 //* log() is gated behind DEBUG, warn/error always print.
 export function createLogger(scope: string) {
   const prefix = `[alb-qol:${scope}]`;
   return {
     log: (...args: unknown[]) => {
-      if (DEBUG) console.log(prefix, ...args);
+      if (DEBUG) console.log(timestamp(), prefix, ...args);
     },
-    warn: (...args: unknown[]) => console.warn(prefix, ...args),
-    error: (...args: unknown[]) => console.error(prefix, ...args),
+    warn: (...args: unknown[]) => console.warn(timestamp(), prefix, ...args),
+    error: (...args: unknown[]) => console.error(timestamp(), prefix, ...args),
   };
 }
 

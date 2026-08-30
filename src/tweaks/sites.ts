@@ -5,6 +5,9 @@ export interface Site {
   id: string;
   name: string;
   matches: readonly string[];
+  //* Paths where the sidebar UI mounts; omit to mount everywhere.
+  //* Tweaks run on every matched page regardless (scoped by pathPattern).
+  uiPattern?: RegExp;
 }
 
 export const sites = [
@@ -12,9 +15,10 @@ export const sites = [
     id: "pinc",
     name: "PINC YMS",
     matches: [
-      "http://127.0.0.1:8730/shipments*",
-      "https://abs-slc.pincsolutions.com/shipments*",
+      "http://127.0.0.1:8730/*",
+      "https://abs-slc.pincsolutions.com/*",
     ],
+    uiPattern: /^\/shipments/,
   },
 ] as const satisfies readonly Site[];
 
