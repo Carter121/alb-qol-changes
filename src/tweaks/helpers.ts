@@ -1,6 +1,15 @@
 import type { CleanupFn } from "./types";
 
-const DEBUG = false;
+//* Toggle in devtools (Application > Local Storage): set to "1", then reload.
+export const DEBUG = (() => {
+  try {
+    const key = "alb-qol-debug";
+    if (localStorage.getItem(key) === null) localStorage.setItem(key, "0");
+    return localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+})();
 
 //* log() is gated behind DEBUG, warn/error always print.
 export function createLogger(scope: string) {

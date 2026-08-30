@@ -1,6 +1,7 @@
 import { mount } from "svelte";
 import css from "./app.css?inline";
 import App from "./App.svelte";
+import { DEBUG, injectHostCss } from "./tweaks/helpers";
 import { TweakManager } from "./tweaks/manager.svelte";
 import { tweaksFor } from "./tweaks/registry";
 import { findActiveSite } from "./tweaks/sites";
@@ -10,6 +11,31 @@ const site = findActiveSite(location.href);
 if (!site) {
   console.warn("[alb-qol] no site matches", location.href);
 } else {
+  if (DEBUG) {
+    injectHostCss(`
+      #alb-qol-debug-banner {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        z-index: 2147483647 !important;
+        background: #c00 !important;
+        color: #fff !important;
+        font: bold 14px/1 sans-serif !important;
+        text-align: center !important;
+        padding: 6px 0 !important;
+        pointer-events: none !important;
+      }
+    `);
+    const banner = document.createElement("div");
+    banner.id = "alb-qol-debug-banner";
+    banner.textContent = "alb-qol DEBUG MODE";
+    document.body.append(banner);
+    //* Same squeeze trick as the sidebar: push the page down so the fixed
+    //* banner occupies its own space instead of covering the top of the site.
+    document.documentElement.style.marginTop = `${banner.offsetHeight}px`;
+  }
+
   //* Start tweaks before the UI so they apply even if the sidebar never opens.
   const manager = new TweakManager(tweaksFor(site.id, new URL(location.href)));
   manager.start();
