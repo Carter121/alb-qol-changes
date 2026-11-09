@@ -13,7 +13,8 @@ export const paperworkStatus: Tweak = {
     const stop = paperwork.start();
     const removeCss = injectHostCss(`
       .alb-qol-paperwork-column { width: 90px; text-align: center !important; font-size: 12px; }
-      .alb-qol-paperwork-column input { width: 16px; height: 16px; cursor: pointer; appearance: auto !important; }
+      table.grid-table td.alb-qol-paperwork-column { padding: 0 8px !important; vertical-align: middle !important; line-height: 16px !important; }
+      .alb-qol-paperwork-column input { width: 16px !important; height: 16px !important; min-width: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important; vertical-align: middle !important; cursor: pointer; appearance: auto !important; }
       .alb-qol-paperwork-column input:disabled { cursor: not-allowed; opacity: 0.6; }
       .alb-qol-paperwork-column[aria-busy="true"] { background: #fff4e0 !important; }
     `);

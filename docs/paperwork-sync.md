@@ -1,6 +1,6 @@
 # Paperwork sync
 
-The `Paperwork sync` tweak appends a checkbox to the PINC arrivals table. Checked means guards physically possess the paperwork at the guard shack, including an untouched to-do pile. It does not mean the ASN or packet is ready. No PINC fields, filters, reservations, or check-in actions are changed.
+The `Paperwork sync` tweak adds a checkbox in the second column, immediately after the site menu, to the PINC arrivals table. Checked means guards physically possess the paperwork at the guard shack, including an untouched to-do pile. It does not mean the ASN or packet is ready. No PINC fields, filters, reservations, or check-in actions are changed.
 
 ## Build and setup
 
@@ -37,7 +37,7 @@ Initial, connecting, saving and disconnected states disable controls. Indetermin
 
 SSE updates apply only newer revisions. Every full snapshot replaces the map so expired and deleted statuses disappear. Polling observes TTL on its next successful read; streaming receives the server's periodic expiration snapshots (currently every 15 seconds). Separate tabs have independent connections and share enrollment changes through GM listeners.
 
-The table observer handles insertion and replacement, derives the ID column from `sort_key=shipment_id`, preserves string IDs, and prefers `data-alb-qol-shipment-id` on synthetic rows. Missing/invalid IDs show `Unavailable` and a warning without shipment details. Owned columns are excluded from the new-row builder. Disabling the tweak removes cells, styles, observers, GM listeners, timers and active requests.
+The table observer handles insertion and replacement, derives the ID column from `sort_key=shipment_id`, preserves string IDs, and prefers `data-alb-qol-shipment-id` on synthetic rows. Missing/invalid IDs show `Unavailable` and a warning without shipment details. Owned columns are excluded from the new-row builder and from its duplicate and sort cell lookups. Disabling the tweak removes cells, styles, observers, GM listeners, timers and active requests.
 
 ## API used
 

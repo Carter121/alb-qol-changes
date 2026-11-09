@@ -1,4 +1,4 @@
-import { PAPERWORK_COLUMN } from "./paperwork-table";
+import { PAPERWORK_COLUMN, siteCells } from "./paperwork-table";
 import type { Tweak } from "../types";
 import { createLogger, injectHostCss, onElement } from "../helpers";
 import { subscribeToNewShipments, type Shipment } from "./shipments-poller";
@@ -114,7 +114,7 @@ export const newCheckInRows: Tweak = {
       const idIndex = columns.findIndex((c) => c.field === "shipment_id");
       if (idIndex === -1) return false;
       return Array.from(tbody.rows).some(
-        (row) => row.cells[idIndex]?.textContent?.trim() === id,
+        (row) => siteCells(row)[idIndex]?.textContent?.trim() === id,
       );
     }
 
@@ -136,7 +136,7 @@ export const newCheckInRows: Tweak = {
       //* Empty values sort last in both directions
       if (newKey === "") return null;
       for (const row of Array.from(tbody.rows)) {
-        const rowKey = row.cells[sort.index]?.textContent?.trim() ?? "";
+        const rowKey = siteCells(row)[sort.index]?.textContent?.trim() ?? "";
         if (rowKey === "") return row;
         const cmp = compareKeys(rowKey, newKey);
         if (sort.ascending ? cmp > 0 : cmp < 0) return row;

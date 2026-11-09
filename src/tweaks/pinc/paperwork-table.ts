@@ -3,6 +3,12 @@ import type { Status } from "./paperwork-model";
 import { validShipmentId } from "./paperwork-model";
 
 export const PAPERWORK_COLUMN = "alb-qol-paperwork-column";
+export function siteCells(row: HTMLTableRowElement) {
+  return Array.from(row.cells).filter(
+    (cell) => !cell.classList.contains(PAPERWORK_COLUMN),
+  );
+}
+
 export function isArrivalsView() {
   const param = new URLSearchParams(location.search).get("view_type");
   if (param) return param === "arrivals";
@@ -53,10 +59,10 @@ export function attachPaperworkTable(
         th.className = PAPERWORK_COLUMN;
         th.textContent = "Paperwork";
         th.scope = "col";
-        header.append(th);
+        header.insertBefore(th, header.cells[1] ?? null);
         owned.add(th);
       }
-      const index = Array.from(header.cells).findIndex((th) => {
+      const index = siteCells(header).findIndex((th) => {
         const link = th.querySelector<HTMLAnchorElement>(
           "a[href*='sort_key=']",
         );
@@ -75,12 +81,14 @@ export function attachPaperworkTable(
           if (!cell) {
             cell = document.createElement("td");
             cell.className = PAPERWORK_COLUMN;
-            row.append(cell);
+            row.insertBefore(cell, row.cells[1] ?? null);
             owned.add(cell);
           }
           const id =
             row.dataset.albQolShipmentId ??
-            (index >= 0 ? row.cells[index]?.textContent?.trim() : undefined);
+            (index >= 0
+              ? siteCells(row)[index]?.textContent?.trim()
+              : undefined);
           if (!id || !validShipmentId(id)) {
             cell.textContent = "Unavailable";
             if (!warned.has(row)) {

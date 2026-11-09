@@ -147,6 +147,10 @@ test("table rebuilds, unknown status, missing IDs, synthetic rows and arrivals g
     (...args) => writes.push(args),
   );
   try {
+    assert.equal(
+      document.querySelector("tbody tr").cells[1].className,
+      "alb-qol-paperwork-column",
+    );
     let input = document.querySelector("input");
     assert.equal(input.disabled, true);
     assert.equal(input.indeterminate, true);
@@ -218,6 +222,12 @@ for (const paperworkFirst of [true, false])
       CSSStyleSheet: dom.window.CSSStyleSheet,
     });
     document.adoptedStyleSheets = [];
+    const shipmentHeader = document.querySelectorAll("th")[1];
+    shipmentHeader.classList.add("active_sort_tag");
+    shipmentHeader.insertAdjacentHTML(
+      "beforeend",
+      '<img src="sort_asc.png" alt="Ascending">',
+    );
     const originalInterval = globalThis.setInterval;
     const originalFetch = globalThis.fetch;
     let poll;
@@ -225,7 +235,7 @@ for (const paperworkFirst of [true, false])
       poll = callback;
       return 0;
     };
-    let shipments = [{ shipment_id: "000123" }];
+    let shipments = [{ shipment_id: "SYNTHETIC-SEED" }];
     globalThis.fetch = async () => ({
       ok: true,
       text: async () => JSON.stringify(shipments),
@@ -245,15 +255,47 @@ for (const paperworkFirst of [true, false])
         table = attach();
       }
       await tick();
-      shipments.push({ shipment_id: "000456", asset_id: "3pty-FAKE" });
+      shipments.push(
+        { shipment_id: "000123" },
+        { shipment_id: "000456", asset_id: "3pty-FAKE" },
+        { shipment_id: "000111" },
+        { shipment_id: "000789" },
+      );
       await poll();
       await tick();
-      const inserted = document.querySelector("tr.alb-qol-new-row");
+      const inserted = document.querySelector(
+        'tr[data-alb-qol-shipment-id="000456"]',
+      );
+      const ids = () =>
+        Array.from(
+          document.querySelectorAll("tbody tr"),
+          (row) =>
+            Array.from(row.cells).filter(
+              (cell) => !cell.classList.contains("alb-qol-paperwork-column"),
+            )[1].textContent,
+        );
+      assert.deepEqual(ids(), ["000111", "000123", "000456", "000789"]);
+      assert.equal(
+        document.querySelector("thead tr").cells[1].textContent,
+        "Paperwork",
+      );
       assert.equal(inserted.cells.length, 4);
-      assert.equal(inserted.cells[2].textContent, "3pty-FAKE");
+      assert.equal(inserted.cells[1].className, "alb-qol-paperwork-column");
+      assert.equal(inserted.cells[2].textContent, "000456");
+      assert.equal(inserted.cells[3].textContent, "3pty-FAKE");
       assert.equal(inserted.querySelectorAll("input").length, 1);
       table.cleanup();
       assert.equal(inserted.cells.length, 3);
+      shipments.push({ shipment_id: "000333" });
+      await poll();
+      await tick();
+      assert.deepEqual(ids(), [
+        "000111",
+        "000123",
+        "000333",
+        "000456",
+        "000789",
+      ]);
       table = attach();
       assert.equal(inserted.cells.length, 4);
       stopRows();
