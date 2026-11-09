@@ -105,9 +105,6 @@
             paperwork.forget();
           }}>Forget device</Button
         >
-        <p class="text-muted-foreground text-xs">
-          Forgetting clears this browser's credential.
-        </p>
       {/if}
     {/if}
     {#if error}<p role="alert" class="text-sm">{error}</p>{/if}
