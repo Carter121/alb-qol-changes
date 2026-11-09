@@ -1,6 +1,7 @@
 <script lang="ts">
   import * as Sidebar from "$lib/components/ui/sidebar";
   import SidebarTab from "$lib/components/sidebar-tab.svelte";
+  import PaperworkSettings from "$lib/components/paperwork-settings.svelte";
   import TweaksGroup from "$lib/components/tweaks-group.svelte";
   import type { TweakManager } from "./tweaks/manager.svelte";
 
@@ -42,12 +43,15 @@
           <TweaksGroup {manager} />
         </Sidebar.GroupContent>
       </Sidebar.Group>
-<!--      <Sidebar.Group>-->
-<!--        <Sidebar.GroupLabel>Check-Ins</Sidebar.GroupLabel>-->
-<!--        <Sidebar.GroupContent>-->
-<!--          <p class="text-muted-foreground px-2 text-xs">Recent PINC check-ins will live here.</p>-->
-<!--        </Sidebar.GroupContent>-->
-<!--      </Sidebar.Group>-->
+      {#if manager.tweaks.some((tweak) => tweak.id === "paperwork-status")}
+        <PaperworkSettings />
+      {/if}
+      <!--      <Sidebar.Group>-->
+      <!--        <Sidebar.GroupLabel>Check-Ins</Sidebar.GroupLabel>-->
+      <!--        <Sidebar.GroupContent>-->
+      <!--          <p class="text-muted-foreground px-2 text-xs">Recent PINC check-ins will live here.</p>-->
+      <!--        </Sidebar.GroupContent>-->
+      <!--      </Sidebar.Group>-->
     </Sidebar.Content>
     <SidebarTab />
   </Sidebar.Root>

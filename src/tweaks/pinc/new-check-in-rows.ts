@@ -1,3 +1,4 @@
+import { PAPERWORK_COLUMN } from "./paperwork-table";
 import type { Tweak } from "../types";
 import { createLogger, injectHostCss, onElement } from "../helpers";
 import { subscribeToNewShipments, type Shipment } from "./shipments-poller";
@@ -174,7 +175,9 @@ export const newCheckInRows: Tweak = {
 
     function readColumns(table: HTMLTableElement): Column[] {
       return Array.from(
-        table.querySelectorAll<HTMLTableCellElement>("thead th"),
+        table.querySelectorAll<HTMLTableCellElement>(
+          `thead th:not(.${PAPERWORK_COLUMN})`,
+        ),
       ).map((th) => {
         const link = th.querySelector<HTMLAnchorElement>(
           "a[href*='sort_key=']",
@@ -195,7 +198,9 @@ export const newCheckInRows: Tweak = {
       columns: Column[],
     ): SortState | null {
       const headers = Array.from(
-        table.querySelectorAll<HTMLTableCellElement>("thead th"),
+        table.querySelectorAll<HTMLTableCellElement>(
+          `thead th:not(.${PAPERWORK_COLUMN})`,
+        ),
       );
       const index = headers.findIndex((th) =>
         th.classList.contains("active_sort_tag"),

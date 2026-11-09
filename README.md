@@ -17,10 +17,13 @@ The script updates automatically via Tampermonkey when a new version is publishe
 | ------------- | ----------------------------------------------------------- |
 | `pnpm dev`    | Dev server with a live-reload install page for Tampermonkey |
 | `pnpm build`  | Build `dist/alb-qol-changes.user.js`                        |
+| `pnpm test`   | Paperwork sync state, transport, and table tests (Node 24+) |
 | `pnpm check`  | svelte-check + tsc                                          |
 | `pnpm format` | Prettier                                                    |
 
 ## Docs
+
+- [Paperwork sync](docs/paperwork-sync.md): server setup, enrollment, transport options, and browser acceptance checks
 
 - [Architecture](docs/architecture.md): how the build, shadow-root UI, and tweak engine fit together, and the host-page quirks that shaped them
 - [Creating tweaks](docs/creating-tweaks.md): how to add a tweak or a new site
