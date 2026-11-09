@@ -7,7 +7,7 @@
 
   let { manager }: { manager: TweakManager } = $props();
 
-  const SIDEBAR_WIDTH_PX = 256;
+  const SIDEBAR_WIDTH_PX = 300;
   let open = $state(false);
 
   //* The sidebar is a fixed overlay, so pushing the document right by its

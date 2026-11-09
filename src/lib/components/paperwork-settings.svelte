@@ -40,10 +40,9 @@
   <Sidebar.GroupContent class="flex flex-col gap-3 px-2">
     <p role="status" class="text-sm">{messages[paperwork.phase]}</p>
     <p class="text-muted-foreground text-xs">
-      Tracks physical paperwork at the guard shack, including the unprocessed
-      pile.
+      Tracks if paperwork is at the guard shack or not.
     </p>
-    <p class="text-muted-foreground break-all text-xs">Server: {API_URL}</p>
+    <!-- <p class="text-muted-foreground break-all text-xs">Server: {API_URL}</p> -->
     {#if paperwork.notice}<p role="status" class="text-sm">
         {paperwork.notice}
       </p>{/if}
@@ -99,6 +98,7 @@
         <Button
           variant="outline"
           size="sm"
+          disabled="true"
           onclick={() => {
             code = "";
             error = "";
@@ -106,8 +106,7 @@
           }}>Forget device</Button
         >
         <p class="text-muted-foreground text-xs">
-          Forgetting clears this browser's credential. Server revocation is a
-          separate admin action.
+          Forgetting clears this browser's credential.
         </p>
       {/if}
     {/if}

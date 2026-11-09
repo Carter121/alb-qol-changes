@@ -57,7 +57,7 @@ export function attachPaperworkTable(
       if (!header.querySelector(`.${PAPERWORK_COLUMN}`)) {
         const th = document.createElement("th");
         th.className = PAPERWORK_COLUMN;
-        th.textContent = "Paperwork";
+        th.textContent = "BOLs";
         th.scope = "col";
         header.insertBefore(th, header.cells[1] ?? null);
         owned.add(th);
