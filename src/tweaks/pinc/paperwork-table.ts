@@ -94,7 +94,7 @@ export function attachPaperworkTable(
             if (!warned.has(row)) {
               warned.add(row);
               warn(
-                "Cannot identify shipment for a paperwork control; row disabled.",
+                "Cannot identify shipment for a paperwork control, row disabled.",
               );
             }
             continue;
@@ -115,8 +115,8 @@ export function attachPaperworkTable(
           input.indeterminate = state.phase !== "connected";
           input.title =
             state.phase === "connected"
-              ? "Checked means physical paperwork is at the guard shack."
-              : `Paperwork status unavailable: ${state.phase}. Open ALB QOL for sync details.`;
+              ? "Checked means we have the paperwork"
+              : `Paperwork status unavailable: ${state.phase}. Open sidebar for sync details.`;
           cell.setAttribute("aria-busy", String(state.phase === "saving"));
           input.onchange = () => {
             save(id, input!.checked);
