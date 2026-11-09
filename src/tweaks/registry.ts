@@ -1,5 +1,4 @@
 import type { Tweak } from "./types";
-import { arrivalFilterWarning } from "./pinc/arrival-filter-warning";
 import { checkInNotifications } from "./pinc/check-in-notifications";
 import { keepAwake } from "./pinc/keep-awake";
 import { newCheckInRows } from "./pinc/new-check-in-rows";
@@ -12,7 +11,6 @@ const allTweaks: Tweak[] = [
   keepAwake,
   newCheckInRows,
   tableStriping,
-  arrivalFilterWarning,
   paperworkStatus,
 ];
 
