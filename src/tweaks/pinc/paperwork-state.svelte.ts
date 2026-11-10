@@ -6,6 +6,7 @@ import {
   GM_setValue,
 } from "vite-plugin-monkey/dist/client";
 import { API_URL, ApiError, request, stream } from "./paperwork-api";
+import { createLogger } from "../helpers";
 import {
   snapshot,
   status,
@@ -15,6 +16,7 @@ import {
 } from "./paperwork-model";
 
 const KEY = "paperwork-device:v1";
+const logger = createLogger("paperwork");
 type Device = {
   token: string;
   deviceId: string;
@@ -112,6 +114,7 @@ class PaperworkState {
     const device = this.device;
     if (!this.active || !device) return;
     const generation = this.generation;
+    logger.log("connecting", { transport: this.transport });
     if (this.transport === "sse") {
       this.closeStream = stream(
         device.token,
@@ -123,6 +126,7 @@ class PaperworkState {
           }
           if (event === "snapshot") {
             this.rows = snapshot(data);
+            logger.log("SSE snapshot applied", { records: this.rows.size });
             if (this.failures > 0) this.notice = "";
             this.phase = "connected";
             this.failures = 0;
@@ -156,6 +160,7 @@ class PaperworkState {
       );
       if (generation !== this.generation) return;
       this.rows = snapshot(value);
+      logger.log("poll snapshot applied", { records: this.rows.size });
       if (this.failures > 0) this.notice = "";
       this.phase = "connected";
       this.failures = 0;
@@ -163,6 +168,7 @@ class PaperworkState {
       this.timer = setTimeout(() => {
         void this.poll(generation);
       }, 2500);
+      logger.log("next poll scheduled", { delayMs: 2500 });
     } catch (error) {
       if (generation === this.generation) this.failed(error);
     }
@@ -174,10 +180,18 @@ class PaperworkState {
     this.notice =
       error instanceof Error ? error.message : "Paperwork sync failed.";
     this.emit();
+    logger.warn("connection failed", {
+      transport: this.transport,
+      unauthorized,
+    });
     if (!unauthorized && this.active && this.device) {
       const delay =
         Math.min(30000, 1000 * 2 ** Math.min(this.failures++, 5)) *
         (0.8 + Math.random() * 0.4);
+      logger.log("reconnect scheduled", {
+        transport: this.transport,
+        delayMs: Math.round(delay),
+      });
       this.timer = setTimeout(() => {
         this.phase = "connecting";
         this.emit();
