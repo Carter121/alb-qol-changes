@@ -98,7 +98,7 @@
         <Button
           variant="outline"
           size="sm"
-          disabled="true"
+          disabled
           onclick={() => {
             code = "";
             error = "";

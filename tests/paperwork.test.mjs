@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
+import { execFileSync } from "node:child_process";
+import { stream as connectStream } from "../src/tweaks/pinc/paperwork-api.ts";
 import { EventFrames, snapshot } from "../src/tweaks/pinc/paperwork-model.ts";
 import { requests, storage, listeners } from "./userscript-mock.mjs";
 import { paperwork } from "../src/tweaks/pinc/paperwork-state.svelte.ts";
@@ -98,35 +100,212 @@ test("SSE snapshot, ordered revisions, expiry and reconnect", async () => {
   const stop = paperwork.start();
   try {
     const stream = requests.at(-1);
-    let text = "";
-    const send = (event, data) => {
-      text += `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-      stream.onprogress({ status: 200, responseText: text });
+    assert.equal(stream.responseType, "stream");
+    assert.equal(stream.anonymous, true);
+    assert.equal(stream.onprogress, undefined);
+    const source = stream.openStream();
+    const send = async (event, data) => {
+      source.push(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      await tick();
     };
     assert.match(stream.url, /\/v1\/events$/);
-    send("snapshot", { shipments: {} });
+    await send("snapshot", { shipments: {} });
     assert.equal(paperwork.phase, "connected");
-    send("update", { shipmentId: "000123", ...row(true, 5) });
-    send("update", { shipmentId: "000123", ...row(false, 4) });
+    await send("update", { shipmentId: "000123", ...row(true, 5) });
+    await send("update", { shipmentId: "000123", ...row(false, 4) });
     assert.equal(paperwork.rows.get("000123").received, true);
-    send("snapshot", { shipments: {} });
+    await send("snapshot", { shipments: {} });
     assert.equal(paperwork.rows.size, 0);
     stream.onerror();
     assert.equal(paperwork.phase, "disconnected");
     paperwork.restart();
     assert.equal(paperwork.phase, "connecting");
     const next = requests.at(-1);
-    next.onprogress({
-      status: 200,
-      responseText: "event: unauthorized\ndata: {}\n\n",
-    });
+    next.openStream().push("event: unauthorized\ndata: {}\n\n");
+    await tick();
     assert.equal(paperwork.phase, "unauthorized");
     assert.equal(next.aborted, true);
+    assert.equal(next.readerCanceled, true);
   } finally {
     stop();
     storage.clear();
   }
 });
+
+test("SSE decodes split UTF-8, handles EOF and cancels pending reads", async () => {
+  const events = [];
+  const failures = [];
+  const stop = connectStream(
+    "test-token",
+    (...event) => events.push(event),
+    (error) => failures.push(error),
+  );
+  const request = requests.at(-1);
+  const source = request.openStream();
+  const bytes = new TextEncoder().encode(
+    'event: message\ndata: {"text":"caf\u00e9"}\n\n',
+  );
+  const split = bytes.indexOf(0xc3) + 1;
+  source.bytes(bytes.slice(0, split));
+  source.bytes(bytes.slice(split));
+  await tick();
+  assert.deepEqual(events, [["message", { text: "caf\u00e9" }]]);
+  source.close();
+  await tick();
+  assert.equal(failures.length, 1);
+  assert.match(failures[0].message, /closed/);
+  assert.equal(request.aborted, true);
+  stop();
+
+  const cancel = connectStream(
+    "test-token",
+    () => assert.fail("late event"),
+    () => assert.fail("intentional stop"),
+  );
+  const pending = requests.at(-1);
+  pending.openStream();
+  cancel();
+  await tick();
+  assert.equal(pending.readerCanceled, true);
+  assert.equal(pending.aborted, true);
+});
+
+test("SSE rejects HTTP errors, missing streams, redirects and malformed events", async () => {
+  for (const scenario of [
+    "401",
+    "503",
+    "missing",
+    "redirect",
+    "invalid",
+    "read-error",
+  ]) {
+    const failures = [];
+    const stop = connectStream(
+      "test-token",
+      () => assert.fail("unexpected event"),
+      (error) => failures.push(error),
+    );
+    const request = requests.at(-1);
+    if (scenario === "401" || scenario === "503")
+      request.openStream(Number(scenario));
+    else if (scenario === "missing") request.onloadstart({ status: 200 });
+    else if (scenario === "redirect")
+      request.onloadstart({
+        status: 200,
+        finalUrl: "https://other.example/v1/events",
+      });
+    else {
+      const source = request.openStream();
+      if (scenario === "invalid")
+        source.push("event: update\ndata: invalid\n\n");
+      else source.error();
+    }
+    await tick();
+    assert.equal(failures.length, 1, scenario);
+    assert.equal(request.aborted, true, scenario);
+    if (scenario === "401") assert.equal(failures[0].status, 401);
+    stop();
+  }
+});
+
+test("SSE drains queued frames before EOF without progress callbacks", async () => {
+  const events = [];
+  const failures = [];
+  const stop = connectStream(
+    "test-token",
+    (event, data) => events.push([event, data]),
+    (error) => failures.push(error),
+  );
+  try {
+    const source = requests.at(-1).openStream();
+    for (const byte of new TextEncoder().encode(
+      'event: snapshot\ndata: {"shipments":{}}\n\nevent: update\ndata: {"revision":2}\n\n',
+    ))
+      source.bytes(Uint8Array.of(byte));
+    source.close();
+    await tick();
+    assert.deepEqual(events, [
+      ["snapshot", { shipments: {} }],
+      ["update", { revision: 2 }],
+    ]);
+    assert.equal(failures.length, 1);
+  } finally {
+    stop();
+  }
+});
+
+test("SSE heartbeats reset the watchdog and stalled streams disconnect", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const failures = [];
+  const stop = connectStream(
+    "test-token",
+    () => assert.fail("heartbeat is not an event"),
+    (error) => failures.push(error),
+  );
+  try {
+    const request = requests.at(-1);
+    const source = request.openStream();
+    t.mock.timers.tick(30000);
+    source.push(": heartbeat\n\n");
+    await Promise.resolve();
+    t.mock.timers.tick(30000);
+    assert.equal(failures.length, 0);
+    t.mock.timers.tick(15000);
+    assert.equal(failures.length, 1);
+    assert.match(failures[0].message, /stalled/);
+    assert.equal(request.readerCanceled, true);
+    assert.equal(request.aborted, true);
+  } finally {
+    stop();
+    t.mock.timers.reset();
+  }
+});
+
+for (const debug of ["0", "1"])
+  test(`paperwork debug=${debug} logs respect the setting and hide credentials and shipment data`, () => {
+    const output = execFileSync(
+      process.execPath,
+      [
+        "--import",
+        "./tests/register.mjs",
+        "--input-type=module",
+        "-e",
+        `
+    globalThis.localStorage = { getItem: () => "${debug}" };
+    const { paperwork } = await import("./src/tweaks/pinc/paperwork-state.svelte.ts");
+    const { requests, storage } = await import("./tests/userscript-mock.mjs");
+    storage.set("paperwork-device:v1", {
+      apiUrl: "http://127.0.0.1:8080", token: "PRIVATE_TOKEN", deviceId: "PRIVATE_DEVICE", transport: "poll"
+    });
+    const stop = paperwork.start();
+    requests.at(-1).respond(200, { shipments: { PRIVATE_SHIPMENT: { received: true, revision: 1, updatedAt: 1 } } });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    paperwork.setTransport("sse");
+    const source = requests.at(-1).openStream();
+    source.push('event: snapshot\\ndata: {"shipments":{}}\\n\\n');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    requests.at(-1).onerror();
+    stop();
+  `,
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+    for (const message of [
+      "request started",
+      "request completed",
+      "poll snapshot applied",
+      "next poll scheduled",
+      "SSE response opened",
+      "SSE chunk received",
+      "SSE snapshot applied",
+      "reconnect scheduled",
+    ])
+      assert.equal(output.includes(message), debug === "1", message);
+    assert.doesNotMatch(
+      output,
+      /PRIVATE_TOKEN|PRIVATE_DEVICE|PRIVATE_SHIPMENT/,
+    );
+  });
 
 const tableHtml = () =>
   `<table class="grid-table"><thead><tr><th>Actions</th><th><a href="?sort_key=shipment_id">Shipment</a></th><th><a href="?sort_key=asset_id">Asset</a></th></tr></thead><tbody><tr><td>Edit</td><td>000123</td><td>3pty-FAKE</td></tr></tbody></table>`;
@@ -277,7 +456,7 @@ for (const paperworkFirst of [true, false])
       assert.deepEqual(ids(), ["000111", "000123", "000456", "000789"]);
       assert.equal(
         document.querySelector("thead tr").cells[1].textContent,
-        "Paperwork",
+        "BOLs",
       );
       assert.equal(inserted.cells.length, 4);
       assert.equal(inserted.cells[1].className, "alb-qol-paperwork-column");

@@ -16,6 +16,28 @@ export function GM_xmlhttpRequest(options) {
     respond(status, body) {
       options.onload({ status, responseText: JSON.stringify(body) });
     },
+    openStream(status = 200) {
+      let controller;
+      const encoder = new TextEncoder();
+      const response = new ReadableStream({
+        start(value) {
+          controller = value;
+        },
+        cancel() {
+          item.readerCanceled = true;
+        },
+      });
+      options.onloadstart({ status, response, finalUrl: options.url });
+      return {
+        push: (text) => controller.enqueue(encoder.encode(text)),
+        bytes: (bytes) => controller.enqueue(bytes),
+        close: () => {
+          controller.close();
+          options.onload({ status });
+        },
+        error: () => controller.error(new Error("Synthetic read failure")),
+      };
+    },
   };
   requests.push(item);
   return {
