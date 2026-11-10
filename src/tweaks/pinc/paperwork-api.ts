@@ -103,6 +103,7 @@ export function stream(
   let stopped = false;
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   let handle: { abort: () => void } | undefined;
+  let httpStatus = 0;
   let watchdog: ReturnType<typeof setTimeout>;
   const fail = (error: Error) => {
     if (stopped) return;
@@ -145,6 +146,17 @@ export function stream(
       fail(new Error("Paperwork stream read or event processing failed."));
     }
   }
+  function checkResponse(response: { status: number; finalUrl?: string }) {
+    if (response.status > 0) {
+      httpStatus = response.status;
+      if (httpStatus !== 200) throw new ApiError(httpStatus, null);
+    }
+    if (
+      response.finalUrl &&
+      new URL(response.finalUrl).origin !== new URL(API_URL).origin
+    )
+      throw new Error("Unexpected API redirect");
+  }
   logger.log("SSE request started");
   arm();
   handle = GM_xmlhttpRequest({
@@ -156,28 +168,39 @@ export function stream(
     onloadstart: (response) => {
       if (stopped) return;
       try {
-        if (response.status === 401) throw new ApiError(401, null);
-        if (response.status !== 200)
-          throw new Error("Paperwork stream unavailable.");
-        if (
-          response.finalUrl &&
-          new URL(response.finalUrl).origin !== new URL(API_URL).origin
-        )
-          throw new Error("Unexpected API redirect");
+        //* Tampermonkey can expose the stream before the HTTP status is known.
+        checkResponse(response);
         if (!response.response?.getReader)
           throw new Error(
             "Browser did not provide a paperwork response stream.",
           );
         reader = response.response.getReader();
-        logger.log("SSE response opened", { status: response.status });
+        logger.log("SSE response opened", { status: httpStatus || "pending" });
         void consume();
       } catch (error) {
         fail(error instanceof Error ? error : new Error("Invalid stream"));
       }
     },
+    onreadystatechange: (response) => {
+      if (stopped || response.readyState < 2) return;
+      try {
+        checkResponse(response);
+        logger.log("SSE response status", {
+          readyState: response.readyState,
+          status: httpStatus || "pending",
+        });
+      } catch (error) {
+        fail(error instanceof Error ? error : new Error("Invalid stream"));
+      }
+    },
     onload: (response) => {
-      if (response.status === 401) fail(new ApiError(401, null));
-      else if (!reader) fail(new Error("Paperwork stream closed."));
+      if (stopped) return;
+      try {
+        checkResponse(response);
+        if (!reader) fail(new Error("Paperwork stream closed."));
+      } catch (error) {
+        fail(error instanceof Error ? error : new Error("Invalid stream"));
+      }
     },
     onerror: () => fail(new Error("Paperwork stream unreachable.")),
     ontimeout: () => fail(new Error("Paperwork stream timed out.")),

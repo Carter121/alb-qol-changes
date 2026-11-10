@@ -170,6 +170,74 @@ test("SSE decodes split UTF-8, handles EOF and cancels pending reads", async () 
   assert.equal(pending.aborted, true);
 });
 
+test("SSE accepts status zero at load start and checks later HTTP status", async () => {
+  for (const laterStatus of [200, 401, 503]) {
+    const events = [];
+    const failures = [];
+    const stop = connectStream(
+      "test-token",
+      (...event) => events.push(event),
+      (error) => failures.push(error),
+    );
+    try {
+      const request = requests.at(-1);
+      const source = request.openStream(0);
+      assert.equal(failures.length, 0, "load start has no HTTP status yet");
+      assert.equal(request.aborted, false);
+      request.onreadystatechange({
+        readyState: 2,
+        status: laterStatus,
+        finalUrl: request.url,
+      });
+      if (laterStatus === 200) {
+        source.push('event: snapshot\ndata: {"shipments":{}}\n\n');
+        await tick();
+        assert.deepEqual(events, [["snapshot", { shipments: {} }]]);
+        assert.equal(failures.length, 0);
+      } else {
+        await tick();
+        assert.equal(failures.length, 1);
+        assert.equal(failures[0].status, laterStatus);
+        assert.equal(request.aborted, true);
+        assert.equal(request.readerCanceled, true);
+      }
+    } finally {
+      stop();
+    }
+  }
+});
+
+test("SSE checks completion status and late redirects after status-zero startup", async () => {
+  for (const scenario of ["401", "503", "redirect"]) {
+    const failures = [];
+    const stop = connectStream(
+      "test-token",
+      () => assert.fail("unexpected event"),
+      (error) => failures.push(error),
+    );
+    try {
+      const request = requests.at(-1);
+      request.openStream(0);
+      request.onload({
+        status: scenario === "redirect" ? 200 : Number(scenario),
+        finalUrl:
+          scenario === "redirect"
+            ? "https://other.example/v1/events"
+            : request.url,
+      });
+      await tick();
+      assert.equal(failures.length, 1);
+      assert.equal(request.aborted, true);
+      assert.equal(request.readerCanceled, true);
+      if (scenario === "redirect")
+        assert.match(failures[0].message, /redirect/);
+      else assert.equal(failures[0].status, Number(scenario));
+    } finally {
+      stop();
+    }
+  }
+});
+
 test("SSE rejects HTTP errors, missing streams, redirects and malformed events", async () => {
   for (const scenario of [
     "401",
