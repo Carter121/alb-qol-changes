@@ -36,7 +36,7 @@ class PaperworkState {
   phase = $state<Phase>("off");
   notice = $state("");
   configured = $state(false);
-  transport = $state<"poll" | "sse">("poll");
+  transport = $state<"poll" | "sse">("sse");
   rows = new Map<string, Status>();
   private device: Device | undefined;
   private listeners = new Set<() => void>();
@@ -67,7 +67,7 @@ class PaperworkState {
         ? device
         : undefined;
     this.configured = !!this.device;
-    this.transport = this.device?.transport === "sse" ? "sse" : "poll";
+    this.transport = this.device?.transport === "poll" ? "poll" : "sse";
   }
   start() {
     this.active = true;
@@ -227,7 +227,7 @@ class PaperworkState {
       } else this.failed(error);
     }
   }
-  async enroll(code: string, label: string, transport: "poll" | "sse") {
+  async enroll(code: string, label: string, transport: "poll" | "sse" = "sse") {
     this.enrollment?.abort();
     const controller = new AbortController();
     this.enrollment = controller;

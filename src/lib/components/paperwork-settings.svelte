@@ -26,7 +26,7 @@
     const secret = code;
     code = "";
     try {
-      await paperwork.enroll(secret, label, "poll");
+      await paperwork.enroll(secret, label);
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Enrollment failed.";
     } finally {
@@ -83,8 +83,8 @@
             )}
           disabled={paperwork.phase === "saving"}
         >
+          <option value="sse">SSE (faster)</option>
           <option value="poll">Polling (2.5 seconds)</option>
-          <option value="sse">SSE (requires browser verification)</option>
         </select>
         <Button
           variant="outline"
