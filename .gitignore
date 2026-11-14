@@ -25,6 +25,7 @@ CLAUDE.md
 *.sln
 *.sw?
 *.tsbuildinfo
+.env
 
 # Playwright MCP artifacts
 .playwright-mcp/
