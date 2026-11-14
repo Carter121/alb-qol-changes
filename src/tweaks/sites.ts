@@ -14,10 +14,7 @@ export const sites = [
   {
     id: "pinc",
     name: "PINC YMS",
-    matches: [
-      "http://127.0.0.1:8730/*",
-      "https://abs-slc.pincsolutions.com/*",
-    ],
+    matches: ["http://127.0.0.1:8730/*", "https://abs-slc.pincsolutions.com/*"],
     uiPattern: /^\/shipments/,
   },
 ] as const satisfies readonly Site[];

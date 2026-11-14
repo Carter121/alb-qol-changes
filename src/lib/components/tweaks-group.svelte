@@ -13,11 +13,15 @@
 {:else}
   <Sidebar.Menu>
     {#each manager.tweaks as tweak (tweak.id)}
-      <Sidebar.MenuItem class="flex items-start justify-between gap-2 px-2 py-1.5">
+      <Sidebar.MenuItem
+        class="flex items-start justify-between gap-2 px-2 py-1.5"
+      >
         <div class="flex min-w-0 flex-col gap-1">
           <Label for="tweak-{tweak.id}">{tweak.title}</Label>
           {#if tweak.description}
-            <span class="text-muted-foreground text-xs">{tweak.description}</span>
+            <span class="text-muted-foreground text-xs"
+              >{tweak.description}</span
+            >
           {/if}
         </div>
         <Switch
