@@ -34,7 +34,7 @@ export default defineConfig(({ mode }) => {
   const isDev = mode === "testing";
 
   const updateURL = isDev
-    ? "https://scripts.yourdomain.com/dev.user.js"
+    ? "https://userscripts.cartercarling.com/alb-qol-changes.user.js"
     : "https://carter121.github.io/alb-qol-changes/alb-qol-changes.user.js";
 
   return {
