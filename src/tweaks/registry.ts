@@ -3,17 +3,15 @@ import { checkInNotifications } from "./pinc/check-in-notifications";
 import { keepAwake } from "./pinc/keep-awake";
 import { newCheckInRows } from "./pinc/new-check-in-rows";
 import { paperworkStatus } from "./pinc/paperwork-status";
-import { preferredLocations } from "./pinc/preferred-locations";
-import { tableStriping } from "./pinc/table-striping";
+import { betterTable } from "./pinc/better-table";
 
 //* Separate from sites.ts so vite.config's import graph stays browser-free.
 const allTweaks: Tweak[] = [
   checkInNotifications,
   keepAwake,
   newCheckInRows,
-  tableStriping,
+  betterTable,
   paperworkStatus,
-  preferredLocations,
 ];
 
 export function tweaksFor(siteId: string, url: URL): Tweak[] {

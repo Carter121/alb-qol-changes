@@ -9,8 +9,8 @@ import {
   subscribeToShipmentTables,
 } from "../src/tweaks/pinc/shipments-table.ts";
 import { attachPaperworkTable } from "../src/tweaks/pinc/paperwork-table.ts";
-import { preferredLocations } from "../src/tweaks/pinc/preferred-locations.ts";
-import { tableStriping } from "../src/tweaks/pinc/table-striping.ts";
+import { betterTable } from "../src/tweaks/pinc/better-table.ts";
+import { attachColumnTitles } from "../src/tweaks/pinc/column-titles.ts";
 import { newCheckInRows } from "../src/tweaks/pinc/new-check-in-rows.ts";
 import { TweakManager } from "../src/tweaks/manager.svelte.ts";
 import { paperworkStatus } from "../src/tweaks/pinc/paperwork-status.ts";
@@ -76,9 +76,7 @@ function fixture(html = tableHtml()) {
               () => state,
               (...args) => writes.push(args),
             )
-          : [newCheckInRows, null, preferredLocations, tableStriping][
-              index
-            ].apply();
+          : [newCheckInRows, null, betterTable][index].apply();
       const stop = typeof handle === "function" ? handle : handle.cleanup;
       stops.push(stop);
       return stop;
@@ -103,17 +101,35 @@ function fixture(html = tableHtml()) {
     },
   };
 }
+function addPoColumn() {
+  for (const table of document.querySelectorAll("table.grid-table")) {
+    if (!table.querySelector("thead a[href*=purchase_order_number]"))
+      table.tHead.rows[0].insertAdjacentHTML(
+        "beforeend",
+        '<th><a href="?sort_key=purchase_order_number">Purchase Order Number</a><img alt="Sort"></th>',
+      );
+    for (const row of table.tBodies[0].rows)
+      if (siteCells(row).length === 3)
+        row.insertAdjacentHTML("beforeend", "<td>024459</td>");
+  }
+}
 function invariant(enabled) {
   for (const table of document.querySelectorAll("table.grid-table")) {
     const header = table.tHead.rows[0];
-    assert.equal(siteCells(header).length, 3);
+    const count = siteCells(header).length;
+    assert.ok(count === 3 || count === 4);
+    if (count === 4)
+      assert.equal(
+        header.lastElementChild.textContent,
+        enabled.has(2) ? "PO Number" : "Purchase Order Number",
+      );
     assert.equal(
       header.querySelectorAll(`[${INJECTED_COLUMN}="paperwork"]`).length,
       enabled.has(1) ? 1 : 0,
     );
     for (const row of table.tBodies[0].rows) {
       const cells = siteCells(row);
-      assert.equal(cells.length, 3);
+      assert.equal(cells.length, count);
       assert.equal(
         row.querySelectorAll("input").length,
         enabled.has(1) ? 1 : 0,
@@ -126,20 +142,21 @@ function invariant(enabled) {
     }
     assert.equal(
       table.tBodies[0].classList.contains("alb-qol-table-striping"),
-      enabled.has(3),
+      enabled.has(2),
     );
   }
 }
 
-for (let mask = 0; mask < 16; mask++) {
+for (let mask = 0; mask < 8; mask++) {
   test(
-    `all four tweaks: enabled combination ${mask}`,
+    `all three tweaks: enabled combination ${mask}`,
     { timeout: 5000 },
     async () => {
       const f = fixture();
       try {
+        addPoColumn();
         const enabled = new Set();
-        for (let i = 0; i < 4; i++)
+        for (let i = 0; i < 3; i++)
           if (mask & (1 << i)) {
             f.start(i);
             enabled.add(i);
@@ -158,6 +175,7 @@ for (let mask = 0; mask < 16; mask++) {
           ]);
         invariant(enabled);
         document.querySelector("table").outerHTML = tableHtml();
+        addPoColumn();
         await tick();
         invariant(enabled);
         const stable = document.body.innerHTML;
@@ -180,10 +198,11 @@ function permutations(values) {
       )
     : [[]];
 }
-for (const order of permutations([0, 1, 2, 3])) {
+for (const order of permutations([0, 1, 2])) {
   test(`enable order ${order.join(",")} and reverse cleanup`, async () => {
     const f = fixture();
     try {
+      addPoColumn();
       const enabled = new Set();
       const stops = order.map((index) => {
         const stop = f.start(index);
@@ -201,7 +220,7 @@ for (const order of permutations([0, 1, 2, 3])) {
         },
       ]);
       invariant(enabled);
-      for (let i = 3; i >= 0; i--) {
+      for (let i = 2; i >= 0; i--) {
         stops[i]();
         enabled.delete(order[i]);
         invariant(enabled);
@@ -432,13 +451,12 @@ test("empty-state and merged rows are skipped; replacement bodies are decorated"
   try {
     f.start(1);
     f.start(2);
-    f.start(3);
     assert.equal(document.querySelectorAll("input").length, 0);
     const oldBody = document.querySelector("tbody");
     oldBody.outerHTML = `<tbody>${rowHtml()}</tbody>`;
     await tick();
     assert.equal(oldBody.classList.contains("alb-qol-table-striping"), false);
-    invariant(new Set([1, 2, 3]));
+    invariant(new Set([1, 2]));
     document.querySelector("tbody td").colSpan = 2;
     await tick();
     assert.equal(document.querySelectorAll("input").length, 0);
@@ -470,7 +488,6 @@ test("pending shipments survive absent/incomplete tables and use latest column o
     f.start(0);
     f.start(1);
     f.start(2);
-    f.start(3);
     await tick();
     await f.send([
       {
@@ -598,7 +615,7 @@ test(
     try {
       for (let step = 0; step < 500; step++) {
         const op = random() % 7,
-          index = (random() >>> 8) % 4;
+          index = (random() >>> 8) % 3;
         history.push([op, index]);
         if (op < 3) {
           if (stops.has(index)) {
@@ -618,6 +635,7 @@ test(
         else if (op === 5)
           document.querySelector("thead a").textContent = `Shipment ${step}`;
         else document.querySelector("tbody").classList.toggle("host-class");
+        addPoColumn();
         await tick();
         invariant(enabled);
       }
@@ -644,6 +662,7 @@ test(
         ).join(""),
       ),
     );
+    addPoColumn();
     let calls = 0;
     const subscription = subscribeToShipmentTables({
       name: "count",
@@ -655,13 +674,12 @@ test(
     try {
       f.start(1);
       f.start(2);
-      f.start(3);
       const before = calls;
       for (const row of document.querySelector("tbody").rows)
         siteCells(row)[2].firstChild.data = "Persh:99,Persh:100,Persh:101";
       await tick();
       assert.equal(calls, before + 1);
-      invariant(new Set([1, 2, 3]));
+      invariant(new Set([1, 2]));
       await tick();
       assert.equal(calls, before + 1);
     } finally {
@@ -673,12 +691,7 @@ test(
 
 test("tweak manager preserves stored IDs, disabled settings and remote toggles", async () => {
   const f = fixture();
-  const tweaks = [
-    newCheckInRows,
-    paperworkStatus,
-    preferredLocations,
-    tableStriping,
-  ];
+  const tweaks = [newCheckInRows, paperworkStatus, betterTable];
   storage.clear();
   listeners.clear();
   for (const tweak of tweaks) storage.set(`tweak-enabled:${tweak.id}`, false);
@@ -688,18 +701,18 @@ test("tweak manager preserves stored IDs, disabled settings and remote toggles",
     await tick();
     assert.deepEqual(
       tweaks.map((t) => manager.enabled[t.id]),
-      [false, false, false, false],
+      [false, false, false],
     );
     assert.equal(document.querySelectorAll(`[${INJECTED_COLUMN}]`).length, 0);
-    manager.setEnabled("preferred-locations", true);
+    manager.setEnabled("better-table", true);
     await tick();
-    assert.equal(storage.get("tweak-enabled:preferred-locations"), true);
+    assert.equal(storage.get("tweak-enabled:better-table"), true);
     assert.equal(
       document.querySelector("tbody td:last-child").textContent,
       "Persh:99-101",
     );
-    listeners.get("tweak-enabled:preferred-locations")(
-      "tweak-enabled:preferred-locations",
+    listeners.get("tweak-enabled:better-table")(
+      "tweak-enabled:better-table",
       true,
       false,
       true,
@@ -826,6 +839,216 @@ test("structural edits are visible to later phases and unsubscribe during dispat
   } finally {
     cancel?.cleanup();
     for (const sub of subscriptions.reverse()) sub.cleanup();
+    f.close();
+  }
+});
+
+for (const view of ["arrivals", "inbound", "outbound"]) {
+  test(`column title rules preserve markup and values on ${view}`, async () => {
+    const f = fixture();
+    let stop;
+    try {
+      f.dom.reconfigure({
+        url: `http://127.0.0.1:8730/shipments?view_type=${view}`,
+      });
+      addPoColumn();
+      const header = document.querySelector("thead th:last-child");
+      const link = header.querySelector("a"),
+        image = header.querySelector("img");
+      link.innerHTML = "  purchase <span>ORDER</span>\n number  ";
+      let clicks = 0;
+      link.onclick = (event) => {
+        event.preventDefault();
+        clicks++;
+      };
+      stop = f.start(2);
+      assert.equal(header.textContent.trim(), "PO Number");
+      assert.equal(header.querySelector("a"), link);
+      assert.equal(header.querySelector("img"), image);
+      link.click();
+      assert.equal(clicks, 1);
+      assert.equal(
+        document.querySelector("tbody td:last-child").textContent,
+        "024459",
+      );
+      document.querySelector("thead tr").prepend(header);
+      await tick();
+      assert.equal(header.textContent.trim(), "PO Number");
+      stop();
+      assert.equal(header.textContent, "  purchase ORDER\n number  ");
+      stop = f.start(2);
+      link.firstChild.data = "Custom PO label";
+      stop();
+      assert.ok(header.textContent.includes("Custom PO label"));
+      document.querySelector("table").outerHTML = tableHtml();
+      addPoColumn();
+      stop = f.start(2);
+      await tick();
+      assert.equal(
+        document.querySelector("thead th:last-child").textContent,
+        "PO Number",
+      );
+    } finally {
+      stop?.();
+      f.close();
+    }
+  });
+}
+
+test("multiple title rules, safe fallbacks and custom labels", async () => {
+  const f = fixture("");
+  const stop = attachColumnTitles([
+    {
+      field: "purchase_order_number",
+      from: "Purchase Order Number",
+      to: "PO Number",
+    },
+    { field: "asset_id", from: "Asset Identifier", to: "Asset" },
+  ]);
+  try {
+    document.body.innerHTML = tableHtml() + tableHtml();
+    addPoColumn();
+    await tick();
+    assert.deepEqual(
+      Array.from(
+        document.querySelectorAll("thead th:last-child"),
+        (th) => th.textContent,
+      ),
+      ["PO Number", "PO Number"],
+    );
+    const header = document.querySelector("thead tr");
+    header.innerHTML =
+      '<th><a href="?sort_key=asset_id">Asset Identifier</a></th><th> Purchase   Order NUMBER </th><th><a href="http://[?sort_key=broken">Purchase Order Number</a></th><th><a href="?sort_key=unrelated">Purchase Order Number</a></th><th><a href="?sort_key=purchase_order_number">Custom PO title</a></th><th>PO Number</th><th>Purchase Order Number Details</th>';
+    await tick();
+    assert.deepEqual(
+      Array.from(header.cells, (th) => th.textContent.trim()),
+      [
+        "Asset",
+        "PO Number",
+        "PO Number",
+        "Purchase Order Number",
+        "Custom PO title",
+        "PO Number",
+        "Purchase Order Number Details",
+      ],
+    );
+    stop();
+    assert.equal(header.cells[0].textContent, "Asset Identifier");
+    assert.equal(header.cells[1].textContent, " Purchase   Order NUMBER ");
+  } finally {
+    stop();
+    f.close();
+  }
+});
+
+for (let legacy = 0; legacy < 4; legacy++) {
+  for (const saved of [undefined, false, true]) {
+    test(`Better Table default ignores legacy ${legacy}, saved=${saved}`, async () => {
+      const f = fixture();
+      addPoColumn();
+      storage.clear();
+      listeners.clear();
+      storage.set("tweak-enabled:table-striping", !!(legacy & 1));
+      storage.set("tweak-enabled:preferred-locations", !!(legacy & 2));
+      if (saved !== undefined) storage.set("tweak-enabled:better-table", saved);
+      const manager = new TweakManager([betterTable]);
+      try {
+        manager.start();
+        await tick();
+        const expected = saved ?? true;
+        assert.equal(manager.enabled["better-table"], expected);
+        invariant(new Set(expected ? [2] : []));
+        assert.equal(
+          storage.get("tweak-enabled:table-striping"),
+          !!(legacy & 1),
+        );
+        assert.equal(
+          storage.get("tweak-enabled:preferred-locations"),
+          !!(legacy & 2),
+        );
+        listeners.get("tweak-enabled:better-table")(
+          "tweak-enabled:better-table",
+          expected,
+          !expected,
+          true,
+        );
+        await tick();
+        invariant(new Set(!expected ? [2] : []));
+      } finally {
+        manager.setEnabled("better-table", false);
+        await tick();
+        storage.clear();
+        listeners.clear();
+        f.close();
+      }
+    });
+  }
+}
+
+test("Better Table preserves formatting scope and cleans up after consumer errors", () => {
+  const f = fixture();
+  try {
+    f.dom.reconfigure({ url: "http://127.0.0.1:8730/shipments/edit" });
+    addPoColumn();
+    const stop = betterTable.apply();
+    assert.equal(
+      document.querySelector("tbody td:nth-child(3)").textContent,
+      "Persh:99,Persh:100,Persh:101",
+    );
+    assert.equal(
+      document.querySelector("thead th:last-child").textContent,
+      "PO Number",
+    );
+    stop();
+    assert.equal(document.adoptedStyleSheets.length, 0);
+    const create = document.createTreeWalker;
+    document.createTreeWalker = () => {
+      throw Error("attachment failure");
+    };
+    const errors = [],
+      original = console.error;
+    console.error = (...args) => errors.push(args);
+    let cleanup;
+    try {
+      cleanup = betterTable.apply();
+      assert.ok(errors.length);
+    } finally {
+      cleanup?.();
+      document.createTreeWalker = create;
+      console.error = original;
+    }
+    assert.equal(document.adoptedStyleSheets.length, 0);
+    assert.equal(
+      document
+        .querySelector("tbody")
+        .classList.contains("alb-qol-table-striping"),
+      false,
+    );
+  } finally {
+    f.close();
+  }
+});
+
+test("Better Table rolls back earlier attachments if startup throws", () => {
+  const f = fixture();
+  const savedLocation = globalThis.location;
+  try {
+    globalThis.location = new Proxy(savedLocation, {
+      get(target, key) {
+        if (key === "pathname") throw Error("startup failure");
+        return Reflect.get(target, key);
+      },
+    });
+    assert.throws(() => betterTable.apply(), /startup failure/);
+    assert.equal(document.adoptedStyleSheets.length, 0);
+    assert.equal(
+      document
+        .querySelector("tbody")
+        .classList.contains("alb-qol-table-striping"),
+      false,
+    );
+  } finally {
+    globalThis.location = savedLocation;
     f.close();
   }
 });

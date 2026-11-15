@@ -115,6 +115,18 @@ Put owned DOM/CSS cleanup in the subscription's `cleanup` callback, where observ
 
 ### Regression and release checks
 
-`pnpm test` runs all Node/jsdom test files using the existing userscript mocks. The shipments suite covers all 16 feature combinations, all 24 enable orders and reverse cleanup, a reproducible 500-operation lifecycle sequence, and a 1,000-row mutation burst. It also checks sort order, native cell mapping, table replacement, unknown paperwork state, reversible text, shared observer quiescence, exception isolation, and persisted/remote toggles. Each fixture fails on unexpected consumer errors. No browser test dependency is required.
+`pnpm test` runs all Node/jsdom test files using the existing userscript mocks. The shipments suite covers all 8 feature combinations, all 6 enable orders and reverse cleanup, a reproducible 500-operation lifecycle sequence, and a 1,000-row mutation burst. It also checks sort order, native cell mapping, table replacement, unknown paperwork state, reversible text, shared observer quiescence, exception isolation, and persisted/remote toggles. Each fixture fails on unexpected consumer errors. No browser test dependency is required.
 
-Before distributing an update, require `pnpm test`, `pnpm check`, and `pnpm build` to pass. The deployment workflow runs these checks before publishing. These tests cannot validate real PINC markup, CSP, computed colors, or Tampermonkey behavior. On a workstation with access, verify sorting links, checkbox writes and propagation, highlighting, replacement tables, all four switches, and two-tab toggle synchronization. Keep the previous installable userscript and version available for rollback. Validate on one workstation before broader distribution; stop rollout for misaligned columns, duplicate rows or controls, observer loops, or incorrect paperwork state.
+Before distributing an update, require `pnpm test`, `pnpm check`, and `pnpm build` to pass. The deployment workflow runs these checks before publishing. These tests cannot validate real PINC markup, CSP, computed colors, or Tampermonkey behavior. On a workstation with access, verify sorting links, checkbox writes and propagation, highlighting, replacement tables, all three table switches, and two-tab toggle synchronization. Keep the previous installable userscript and version available for rollback. Validate on one workstation before broader distribution; stop rollout for misaligned columns, duplicate rows or controls, observer loops, or incorrect paperwork state.
+
+### Better Table and column titles
+
+Better Table combines row striping, preferred-location ranges, and column-title replacements under one switch. New check-in rows and paperwork sync remain independent. The new `tweak-enabled:better-table` preference defaults on, even if either retired feature was disabled. Legacy striping and preferred-location keys remain stored but are ignored. Once the combined switch has a saved preference, it persists and syncs normally across tabs.
+
+Edit `columnTitles` in `src/tweaks/pinc/column-titles.ts` to add a title without changing the handler:
+
+```ts
+{ field: "purchase_order_number", from: "Purchase Order Number", to: "PO Number" }
+```
+
+`field` is the column's sort key. `from` identifies its original label; matching ignores case and repeated whitespace. Headers with no usable sort key can match the source label, but a different known field cannot. Customized and already-shortened labels stay unchanged. The handler preserves nested markup, links, icons, and event handlers, and restores owned edits when Better Table is disabled. The PO rule applies across shipments tabs. Preferred-location cell formatting retains its existing scope: the inbound preferred-location field on the shipments list. Striping retains its shipments-route scope. No individual feature options or title-editing UI are added.
