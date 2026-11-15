@@ -64,3 +64,7 @@ Same-tab listener echo (remote === false) is ignored.
 ```
 
 `#setRunning` uses a generation counter: every toggle bumps it, and an async `apply()` that finishes after a newer toggle has its cleanup run immediately instead of being stored. One tweak throwing is caught and logged and never affects the others.
+
+### Shared shipments table adapter
+
+The four PINC table tweaks share `src/tweaks/pinc/shipments-table.ts`. A per-document coordinator owns one reference-counted MutationObserver, filters unrelated mutations, and refreshes consumers in structural-to-visual order with observation paused. Native columns are identified by sort keys and exclude cells marked `data-alb-qol-column`. This keeps paperwork column insertion independent of new-row rendering and handles tables replaced after initial discovery. The adapter owns DOM discovery, column metadata, view detection, and reversible text edits; consumers retain polling, synchronization, formatting, and CSS. See the table-tweak contract and release checks in [creating-tweaks.md](./creating-tweaks.md).

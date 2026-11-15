@@ -13,7 +13,7 @@
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json && tsc -p tsconfig.node.json",
     "format": "prettier . --write",
-    "test": "node --import ./tests/register.mjs tests/paperwork.test.mjs",
+    "test": "node --import ./tests/register.mjs --test --test-timeout=30000 tests/*.test.mjs",
     "deploy:dev": "bash ./deploy-dev.sh"
   },
   "devDependencies": {

@@ -1,25 +1,18 @@
+import {
+  INJECTED_COLUMN,
+  getShipmentsView,
+  siteCells,
+  subscribeToShipmentTables,
+  type ShipmentTable,
+} from "./shipments-table";
 import { createLogger } from "../helpers";
 import type { Status } from "./paperwork-model";
 import { validShipmentId } from "./paperwork-model";
 
 export const PAPERWORK_COLUMN = "alb-qol-paperwork-column";
-export function siteCells(row: HTMLTableRowElement) {
-  return Array.from(row.cells).filter(
-    (cell) => !cell.classList.contains(PAPERWORK_COLUMN),
-  );
-}
-
+export { siteCells } from "./shipments-table";
 export function isArrivalsView() {
-  const param = new URLSearchParams(location.search).get("view_type");
-  if (param) return param === "arrivals";
-  const active = document.querySelector<HTMLAnchorElement>(
-    "#shipment-tabs dd.active a",
-  );
-  return (
-    !!active &&
-    new URL(active.href, location.href).searchParams.get("view_type") ===
-      "arrivals"
-  );
+  return getShipmentsView() === "arrivals";
 }
 export type TableState = { phase: string; rows: Map<string, Status> };
 export function attachPaperworkTable(
@@ -29,58 +22,52 @@ export function attachPaperworkTable(
   const { warn } = createLogger("paperwork");
   const warned = new WeakSet<HTMLTableRowElement>();
   const owned = new Set<Element>();
-  const observer = new MutationObserver(refresh);
-  const watch = () =>
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-      attributes: true,
-      attributeFilter: ["class", "href", "data-alb-qol-shipment-id"],
-    });
-  function refresh() {
-    //* Disconnect during owned DOM writes to avoid observing ourselves.
-    observer.disconnect();
-    for (const element of owned)
-      if (!element.isConnected) owned.delete(element);
+  function update(tables: ShipmentTable[]) {
+    for (const element of owned) {
+      if (!tables.some(({ table }) => table.contains(element))) {
+        element.remove();
+        owned.delete(element);
+      }
+    }
     if (!isArrivalsView()) {
       for (const element of owned) element.remove();
       owned.clear();
-      watch();
       return;
     }
-    for (const table of document.querySelectorAll<HTMLTableElement>(
-      "table.grid-table",
-    )) {
-      const header = table.tHead?.rows[0];
-      if (!header) continue;
+    for (const { table, header, columns } of tables) {
       if (!header.querySelector(`.${PAPERWORK_COLUMN}`)) {
         const th = document.createElement("th");
         th.className = PAPERWORK_COLUMN;
+        th.setAttribute(INJECTED_COLUMN, "paperwork");
         th.textContent = "BOLs";
         th.scope = "col";
         header.insertBefore(th, header.cells[1] ?? null);
         owned.add(th);
       }
-      const index = siteCells(header).findIndex((th) => {
-        const link = th.querySelector<HTMLAnchorElement>(
-          "a[href*='sort_key=']",
-        );
-        return (
-          !!link &&
-          new URL(link.href, location.href).searchParams.get("sort_key") ===
-            "shipment_id"
-        );
-      });
+      const index = columns.findIndex(
+        (column) => column.field === "shipment_id",
+      );
       for (const body of table.tBodies)
         for (const row of body.rows) {
-          if (row.cells.length === 1 && row.cells[0].colSpan > 1) continue;
+          const native = siteCells(row);
+          if (
+            native.length !== columns.length ||
+            native.some((cell) => cell.colSpan !== 1 || cell.rowSpan !== 1)
+          ) {
+            const previous = row.querySelector(`:scope > .${PAPERWORK_COLUMN}`);
+            if (previous && owned.has(previous)) {
+              previous.remove();
+              owned.delete(previous);
+            }
+            continue;
+          }
           let cell = row.querySelector<HTMLTableCellElement>(
             `:scope > .${PAPERWORK_COLUMN}`,
           );
           if (!cell) {
             cell = document.createElement("td");
             cell.className = PAPERWORK_COLUMN;
+            cell.setAttribute(INJECTED_COLUMN, "paperwork");
             row.insertBefore(cell, row.cells[1] ?? null);
             owned.add(cell);
           }
@@ -120,20 +107,20 @@ export function attachPaperworkTable(
           cell.setAttribute("aria-busy", String(state.phase === "saving"));
           input.onchange = () => {
             save(id, input!.checked);
-            refresh();
+            subscription.refresh();
           };
           input.onclick = (event) => event.stopPropagation();
         }
     }
-    watch();
   }
-  refresh();
-  return {
-    refresh,
+  const subscription = subscribeToShipmentTables({
+    name: "paperwork",
+    phase: "columns",
+    update,
     cleanup() {
-      observer.disconnect();
       for (const element of owned) element.remove();
       owned.clear();
     },
-  };
+  });
+  return subscription;
 }

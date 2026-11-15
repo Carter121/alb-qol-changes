@@ -82,3 +82,39 @@ Patterns are literal prefixes with `*` wildcards only (see `urlMatchesPattern`).
 ## GM APIs
 
 Import what you need from `vite-plugin-monkey/dist/client` (`GM_notification`, `GM_getValue`, ...). The matching `@grant` header lines are added automatically at build. Note that calling `window.focus()` also needs a grant; the plugin detects that too.
+
+## PINC shipments table tweaks
+
+Use `subscribeToShipmentTables` from `src/tweaks/pinc/shipments-table.ts` instead of creating another observer or using `onElement` for the shipments table. It shares one observer per document and handles delayed rendering and table replacement.
+
+```ts
+const edits = createTextEdits();
+const subscription = subscribeToShipmentTables({
+  name: "my-table-tweak",
+  phase: "text",
+  update(tables) {
+    edits.prune();
+    for (const { columns } of tables) {
+      const column = columns.find((column) => column.field === "shipment_id");
+      if (column)
+        edits.replace(column.header, (text) => text.replace("Shipment", "ID"));
+    }
+  },
+  cleanup: edits.cleanup,
+});
+return subscription.cleanup;
+```
+
+Consumers run synchronously in phase order: `rows`, `columns`, `text`, then `decoration`. Registration order breaks ties. Contexts are rebuilt before each consumer, so later phases see earlier structural edits. Updates must be idempotent; do not subscribe or request another refresh from an update. Calls to `refresh()` during dispatch are suppressed. Outside dispatch, `refresh()` updates all consumers immediately, including pending DOM changes.
+
+Each context contains `table`, `header`, native `columns` (`header` and nullable `field`), and nullable `sort` (`index`, `field`, `ascending`). The index refers to native columns, not physical cell positions. Use `siteCells(row)` to obtain matching native cells. Skip rows with mismatched cell counts or merged cells. Mark every injected header and body cell with the exported `INJECTED_COLUMN` attribute (`data-alb-qol-column`) so other consumers exclude it. Keep feature styling and data fetching in the tweak.
+
+`createTextEdits()` preserves descendants and event handlers. Call `prune()` each update to release detached text nodes. Its cleanup restores only text still matching its own replacement. `owns(element)` recognizes a previously renamed header when it has no sort link.
+
+Put owned DOM/CSS cleanup in the subscription's `cleanup` callback, where observation is paused. Stop external subscriptions before calling the returned cleanup. Cleanup is idempotent; individual consumer errors are logged and do not stop later phases. The last unsubscribe disconnects the observer. `getShipmentsView()` reads the URL view first, then the active tab, and returns `null` if unknown. Page path matching remains the tweak manager's responsibility.
+
+### Regression and release checks
+
+`pnpm test` runs all Node/jsdom test files using the existing userscript mocks. The shipments suite covers all 16 feature combinations, all 24 enable orders and reverse cleanup, a reproducible 500-operation lifecycle sequence, and a 1,000-row mutation burst. It also checks sort order, native cell mapping, table replacement, unknown paperwork state, reversible text, shared observer quiescence, exception isolation, and persisted/remote toggles. Each fixture fails on unexpected consumer errors. No browser test dependency is required.
+
+Before distributing an update, require `pnpm test`, `pnpm check`, and `pnpm build` to pass. The deployment workflow runs these checks before publishing. These tests cannot validate real PINC markup, CSP, computed colors, or Tampermonkey behavior. On a workstation with access, verify sorting links, checkbox writes and propagation, highlighting, replacement tables, all four switches, and two-tab toggle synchronization. Keep the previous installable userscript and version available for rollback. Validate on one workstation before broader distribution; stop rollout for misaligned columns, duplicate rows or controls, observer loops, or incorrect paperwork state.

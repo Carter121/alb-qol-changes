@@ -1,5 +1,6 @@
+import { subscribeToShipmentTables } from "./shipments-table";
 import type { Tweak } from "../types";
-import { createLogger, injectHostCss, onElement } from "../helpers";
+import { createLogger, injectHostCss } from "../helpers";
 
 export const tableStriping: Tweak = {
   id: "table-striping",
@@ -19,16 +20,32 @@ export const tableStriping: Tweak = {
         background-color: #e0e0e0 !important;
       }
     `);
-    let striped: Element | null = null;
-    const cancelWatch = onElement(".grid-table tbody", (el) => {
-      el.classList.add(className);
-      striped = el;
-      log("striping applied");
+    const striped = new Set<HTMLTableSectionElement>();
+    const subscription = subscribeToShipmentTables({
+      name: "table-striping",
+      phase: "decoration",
+      update(tables) {
+        const bodies = new Set(
+          tables.flatMap(({ table }) => Array.from(table.tBodies)),
+        );
+        for (const body of striped) {
+          if (!bodies.has(body)) {
+            body.classList.remove(className);
+            striped.delete(body);
+          }
+        }
+        for (const body of bodies) {
+          body.classList.add(className);
+          striped.add(body);
+        }
+      },
+      cleanup() {
+        for (const body of striped) body.classList.remove(className);
+        striped.clear();
+        removeCss();
+        log("stopped");
+      },
     });
-    return () => {
-      cancelWatch();
-      striped?.classList.remove(className);
-      removeCss();
-    };
+    return subscription.cleanup;
   },
 };

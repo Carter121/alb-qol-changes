@@ -1,4 +1,9 @@
 import type { Tweak } from "../types";
+import {
+  createTextEdits,
+  siteCells,
+  subscribeToShipmentTables,
+} from "./shipments-table";
 
 function condenseLocations(value: string): string {
   const departments = new Map<string, { min: number; max: number }>();
@@ -28,91 +33,46 @@ export const preferredLocations: Tweak = {
     "Shorten inbound preferred locations to a door range per department.",
   pathPattern: /^\/shipments\/?$/,
   apply() {
-    const changes = new Map<Text, { original: string; replacement: string }>();
-    const observer = new MutationObserver(refresh);
-
-    function replaceText(
-      element: Element,
-      transform: (value: string) => string,
-    ) {
-      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-      let node: Text | null;
-      while ((node = walker.nextNode() as Text | null)) {
-        const original = node.data;
-        const replacement = transform(original);
-        if (replacement === original) continue;
-        const previous = changes.get(node);
-        changes.set(node, {
-          original:
-            previous?.replacement === original ? previous.original : original,
-          replacement,
-        });
-        node.data = replacement;
-      }
-    }
-
-    function refresh() {
-      observer.disconnect();
-      for (const node of changes.keys()) {
-        if (!node.isConnected) changes.delete(node);
-      }
-      for (const table of document.querySelectorAll<HTMLTableElement>(
-        "table.grid-table",
-      )) {
-        const header = table.tHead?.rows[0];
-        if (!header) continue;
-        for (const th of header.cells) {
-          const link = th.querySelector<HTMLAnchorElement>(
-            "a[href*='sort_key=']",
-          );
-          const field = link
-            ? new URL(link.href, location.href).searchParams.get("sort_key")
-            : null;
-          const isInbound =
-            /^(?:integrations\.)?preferred_locations\.inbound$/i.test(
-              field ?? "",
+    const edits = createTextEdits();
+    const subscription = subscribeToShipmentTables({
+      name: "preferred-locations",
+      phase: "text",
+      update(tables) {
+        edits.prune();
+        for (const { table, columns } of tables) {
+          for (const [index, { header, field }] of columns.entries()) {
+            if (
+              !/^(?:integrations\.)?preferred_locations\.inbound$/i.test(
+                field ?? "",
+              ) &&
+              !edits.owns(header) &&
+              !/preferred\s*locations\s*\.\s*inbound/i.test(
+                header.textContent ?? "",
+              )
+            )
+              continue;
+            edits.replace(header, (text) =>
+              text.replace(
+                /preferred\s*locations\s*\.\s*inbound/gi,
+                "Preferred Locations",
+              ),
             );
-          const wasRenamed = Array.from(changes.keys()).some((node) =>
-            th.contains(node),
-          );
-          if (
-            !isInbound &&
-            !wasRenamed &&
-            !/preferred\s*locations\s*\.\s*inbound/i.test(th.textContent ?? "")
-          )
-            continue;
-
-          replaceText(th, (text) =>
-            text.replace(
-              /preferred\s*locations\s*\.\s*inbound/gi,
-              "Preferred Locations",
-            ),
-          );
-          for (const body of table.tBodies) {
-            for (const row of body.rows) {
-              if (row.cells.length !== header.cells.length) continue;
-              const cell = row.cells[th.cellIndex];
-              replaceText(cell, condenseLocations);
+            for (const body of table.tBodies) {
+              for (const row of body.rows) {
+                const cells = siteCells(row);
+                if (
+                  cells.length !== columns.length ||
+                  cells.some((cell) => cell.colSpan !== 1 || cell.rowSpan !== 1)
+                )
+                  continue;
+                edits.replace(cells[index], condenseLocations);
+              }
             }
           }
         }
-      }
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-        characterData: true,
-        attributes: true,
-        attributeFilter: ["href"],
-      });
-    }
-
-    refresh();
-    return () => {
-      observer.disconnect();
-      for (const [node, { original, replacement }] of changes) {
-        if (node.data === replacement) node.data = original;
-      }
-      changes.clear();
-    };
+      },
+      cleanup: edits.cleanup,
+    });
+    return subscription.cleanup;
   },
 };

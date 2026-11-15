@@ -1,6 +1,11 @@
-import { PAPERWORK_COLUMN, siteCells } from "./paperwork-table";
+import {
+  siteCells,
+  subscribeToShipmentTables,
+  type ShipmentTable,
+  type ShipmentSort as SortState,
+} from "./shipments-table";
 import type { Tweak } from "../types";
-import { createLogger, injectHostCss, onElement } from "../helpers";
+import { createLogger, injectHostCss } from "../helpers";
 import { subscribeToNewShipments, type Shipment } from "./shipments-poller";
 
 const ROW_CLASS = "alb-qol-new-row";
@@ -8,7 +13,6 @@ const ROW_CLASS = "alb-qol-new-row";
 //* Each th maps to its JSON field via the sort link's sort_key param;
 //* null covers the actions column and any future unlinked column.
 type Column = { field: string | null };
-type SortState = { index: number; field: string; ascending: boolean };
 
 export const newCheckInRows: Tweak = {
   id: "new-check-in-rows",
@@ -29,47 +33,44 @@ export const newCheckInRows: Tweak = {
       }
     `);
 
-    let table: HTMLTableElement | null = null;
     const pending: Shipment[] = [];
     const injected: HTMLTableRowElement[] = [];
 
-    const cancelWatch = onElement<HTMLTableElement>(
-      "table.grid-table",
-      (el) => {
-        table = el;
-        flush();
+    const subscription = subscribeToShipmentTables({
+      name: "new-check-in-rows",
+      phase: "rows",
+      update(tables) {
+        for (let index = injected.length - 1; index >= 0; index--) {
+          if (!injected[index].isConnected) injected.splice(index, 1);
+        }
+        const context = tables.find(
+          ({ table, columns }) => table.tBodies[0] && columns.length > 0,
+        );
+        if (context) flush(context);
       },
-    );
+      cleanup() {
+        injected.forEach((tr) => tr.remove());
+        injected.length = 0;
+        pending.length = 0;
+        removeCss();
+      },
+    });
     const unsubscribe = subscribeToNewShipments((fresh) => {
       pending.push(...fresh);
-      flush();
+      subscription.refresh();
     });
 
     return () => {
       unsubscribe();
-      cancelWatch();
-      injected.forEach((tr) => tr.remove());
-      injected.length = 0;
-      pending.length = 0;
-      removeCss();
+      subscription.cleanup();
       log("stopped");
     };
 
     //* Retains pending shipments until the table is usable; re-reads the
     //* thead every time so column changes are picked up.
-    function flush() {
-      if (!table || pending.length === 0) return;
+    function flush({ table, columns, sort }: ShipmentTable) {
+      if (pending.length === 0) return;
       const tbody = table.tBodies[0];
-      if (!tbody) {
-        warn("table has no tbody; retrying next poll");
-        return;
-      }
-      const columns = readColumns(table);
-      if (columns.length === 0) {
-        warn("no columns found in thead; retrying next poll");
-        return;
-      }
-      const sort = readSort(table, columns);
       if (!sort)
         warn("could not determine sort; appending new rows at the end");
 
@@ -97,7 +98,10 @@ export const newCheckInRows: Tweak = {
 
       const tr = buildRow(shipment, columns, id);
       injected.push(tr);
-      tbody.insertBefore(tr, findInsertBeforeRow(shipment, tbody, sort));
+      tbody.insertBefore(
+        tr,
+        findInsertBeforeRow(shipment, tbody, sort, columns.length),
+      );
       log(`inserted row for shipment ${id}`);
     }
 
@@ -113,9 +117,14 @@ export const newCheckInRows: Tweak = {
       }
       const idIndex = columns.findIndex((c) => c.field === "shipment_id");
       if (idIndex === -1) return false;
-      return Array.from(tbody.rows).some(
-        (row) => siteCells(row)[idIndex]?.textContent?.trim() === id,
-      );
+      return Array.from(tbody.rows).some((row) => {
+        const cells = siteCells(row);
+        return (
+          cells.length === columns.length &&
+          cells.every((cell) => cell.colSpan === 1 && cell.rowSpan === 1) &&
+          cells[idIndex]?.textContent?.trim() === id
+        );
+      });
     }
 
     //* Returns the row to insert before, or null to append
@@ -123,6 +132,7 @@ export const newCheckInRows: Tweak = {
       shipment: Shipment,
       tbody: HTMLTableSectionElement,
       sort: SortState | null,
+      columnCount: number,
     ): HTMLTableRowElement | null {
       if (!sort) return null;
       const value = getByPath(shipment, sort.field);
@@ -136,7 +146,13 @@ export const newCheckInRows: Tweak = {
       //* Empty values sort last in both directions
       if (newKey === "") return null;
       for (const row of Array.from(tbody.rows)) {
-        const rowKey = siteCells(row)[sort.index]?.textContent?.trim() ?? "";
+        const cells = siteCells(row);
+        if (
+          cells.length !== columnCount ||
+          cells.some((cell) => cell.colSpan !== 1 || cell.rowSpan !== 1)
+        )
+          continue;
+        const rowKey = cells[sort.index]?.textContent?.trim() ?? "";
         if (rowKey === "") return row;
         const cmp = compareKeys(rowKey, newKey);
         if (sort.ascending ? cmp > 0 : cmp < 0) return row;
@@ -171,48 +187,6 @@ export const newCheckInRows: Tweak = {
         tr.appendChild(td);
       }
       return tr;
-    }
-
-    function readColumns(table: HTMLTableElement): Column[] {
-      return Array.from(
-        table.querySelectorAll<HTMLTableCellElement>(
-          `thead th:not(.${PAPERWORK_COLUMN})`,
-        ),
-      ).map((th) => {
-        const link = th.querySelector<HTMLAnchorElement>(
-          "a[href*='sort_key=']",
-        );
-        if (!link) return { field: null };
-        try {
-          return { field: new URL(link.href).searchParams.get("sort_key") };
-        } catch {
-          return { field: null };
-        }
-      });
-    }
-
-    //* The active th's link holds the toggle direction, so the current
-    //* direction must come from the sort arrow image instead
-    function readSort(
-      table: HTMLTableElement,
-      columns: Column[],
-    ): SortState | null {
-      const headers = Array.from(
-        table.querySelectorAll<HTMLTableCellElement>(
-          `thead th:not(.${PAPERWORK_COLUMN})`,
-        ),
-      );
-      const index = headers.findIndex((th) =>
-        th.classList.contains("active_sort_tag"),
-      );
-      if (index === -1) return null;
-      const field = columns[index]?.field;
-      if (!field) return null;
-      const imgSrc = headers[index].querySelector("img")?.src ?? "";
-      if (imgSrc.includes("sort_asc")) return { index, field, ascending: true };
-      if (imgSrc.includes("sort_desc"))
-        return { index, field, ascending: false };
-      return null;
     }
 
     //* Coercion is shared by rendering and comparison so they agree
