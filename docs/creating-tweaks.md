@@ -130,3 +130,5 @@ Edit `columnTitles` in `src/tweaks/pinc/column-titles.ts` to add a title without
 ```
 
 `field` is the column's sort key. `from` identifies its original label; matching ignores case and repeated whitespace. Headers with no usable sort key can match the source label, but a different known field cannot. Customized and already-shortened labels stay unchanged. The handler preserves nested markup, links, icons, and event handlers, and restores owned edits when Better Table is disabled. The PO rule applies across shipments tabs. Preferred-location cell formatting retains its existing scope: the inbound preferred-location field on the shipments list. Striping retains its shipments-route scope. No individual feature options or title-editing UI are added.
+
+Preferred-location header shortening also lives in `columnTitles`, with rules for `preferred_locations.inbound` and its legacy `integrations.` alias. The preferred-locations attachment only formats cell values.

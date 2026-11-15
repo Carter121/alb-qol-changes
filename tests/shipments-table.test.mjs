@@ -10,6 +10,7 @@ import {
 } from "../src/tweaks/pinc/shipments-table.ts";
 import { attachPaperworkTable } from "../src/tweaks/pinc/paperwork-table.ts";
 import { betterTable } from "../src/tweaks/pinc/better-table.ts";
+import { attachPreferredLocations } from "../src/tweaks/pinc/preferred-locations.ts";
 import { attachColumnTitles } from "../src/tweaks/pinc/column-titles.ts";
 import { newCheckInRows } from "../src/tweaks/pinc/new-check-in-rows.ts";
 import { TweakManager } from "../src/tweaks/manager.svelte.ts";
@@ -1052,3 +1053,56 @@ test("Better Table rolls back earlier attachments if startup throws", () => {
     f.close();
   }
 });
+
+for (const field of [
+  "preferred_locations.inbound",
+  "integrations.preferred_locations.inbound",
+]) {
+  test(`preferred-location title and cell formatting have separate owners: ${field}`, async () => {
+    const f = fixture();
+    let stopTitles, stopCells;
+    try {
+      const header = document.querySelector("thead th:last-child");
+      const link = header.querySelector("a");
+      link.href = `?sort_key=${field}`;
+      stopCells = attachPreferredLocations();
+      assert.equal(header.textContent, "Preferred Locations.Inbound");
+      assert.equal(
+        document.querySelector("tbody td:last-child").textContent,
+        "Persh:99-101",
+      );
+      stopTitles = attachColumnTitles();
+      assert.equal(header.textContent, "Preferred Locations");
+      assert.equal(header.querySelector("a"), link);
+      assert.equal(new URL(link.href).searchParams.get("sort_key"), field);
+      document
+        .querySelector("tbody")
+        .insertAdjacentHTML("beforeend", rowHtml("000456"));
+      await tick();
+      assert.equal(
+        document.querySelector("tbody tr:last-child td:last-child").textContent,
+        "Persh:99-101",
+      );
+      stopCells();
+      assert.equal(header.textContent, "Preferred Locations");
+      assert.equal(
+        document.querySelector("tbody td:last-child").textContent,
+        "Persh:99,Persh:100,Persh:101",
+      );
+      stopTitles();
+      assert.equal(header.textContent, "Preferred Locations.Inbound");
+      stopTitles = attachColumnTitles();
+      stopCells = attachPreferredLocations();
+      stopTitles();
+      assert.equal(header.textContent, "Preferred Locations.Inbound");
+      assert.equal(
+        document.querySelector("tbody td:last-child").textContent,
+        "Persh:99-101",
+      );
+    } finally {
+      stopTitles?.();
+      stopCells?.();
+      f.close();
+    }
+  });
+}

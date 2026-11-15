@@ -37,18 +37,11 @@ export function attachPreferredLocations() {
             !/^(?:integrations\.)?preferred_locations\.inbound$/i.test(
               field ?? "",
             ) &&
-            !edits.owns(header) &&
-            !/preferred\s*locations\s*\.\s*inbound/i.test(
-              header.textContent ?? "",
+            !/^(?:preferred\s*locations)(?:\s*\.\s*inbound)?$/i.test(
+              header.textContent?.trim() ?? "",
             )
           )
             continue;
-          edits.replace(header, (text) =>
-            text.replace(
-              /preferred\s*locations\s*\.\s*inbound/gi,
-              "Preferred Locations",
-            ),
-          );
           for (const body of table.tBodies) {
             for (const row of body.rows) {
               const cells = siteCells(row);

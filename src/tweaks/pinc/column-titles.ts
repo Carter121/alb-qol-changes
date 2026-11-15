@@ -3,6 +3,16 @@ import { createTextEdits, subscribeToShipmentTables } from "./shipments-table";
 export type ColumnTitleRule = { field: string; from: string; to: string };
 export const columnTitles: readonly ColumnTitleRule[] = [
   {
+    field: "preferred_locations.inbound",
+    from: "Preferred Locations.Inbound",
+    to: "Preferred Locations",
+  },
+  {
+    field: "integrations.preferred_locations.inbound",
+    from: "Preferred Locations.Inbound",
+    to: "Preferred Locations",
+  },
+  {
     field: "purchase_order_number",
     from: "Purchase Order Number",
     to: "PO Number",
