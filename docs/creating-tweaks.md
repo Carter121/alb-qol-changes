@@ -121,7 +121,7 @@ Before distributing an update, require `pnpm test`, `pnpm check`, and `pnpm buil
 
 ### Better Table and column titles
 
-Better Table combines row striping, preferred-location ranges, and column-title replacements under one switch. New check-in rows and paperwork sync remain independent. The new `tweak-enabled:better-table` preference defaults on, even if either retired feature was disabled. Legacy striping and preferred-location keys remain stored but are ignored. Once the combined switch has a saved preference, it persists and syncs normally across tabs.
+Better Table combines row striping, preferred-location ranges, driver phone formatting, and column-title replacements under one switch. The phone formatter targets the `custom_text17` sort key on the shipments list and preserves an existing `+1` prefix. New check-in rows and paperwork sync remain independent. The new `tweak-enabled:better-table` preference defaults on, even if either retired feature was disabled. Legacy striping and preferred-location keys remain stored but are ignored. Once the combined switch has a saved preference, it persists and syncs normally across tabs.
 
 Edit `columnTitles` in `src/tweaks/pinc/column-titles.ts` to add a title without changing the handler:
 

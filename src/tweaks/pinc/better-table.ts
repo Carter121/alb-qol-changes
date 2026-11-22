@@ -1,5 +1,6 @@
 import type { CleanupFn, Tweak } from "../types";
 import { attachColumnTitles } from "./column-titles";
+import { attachDriverPhone } from "./driver-phone";
 import { attachPreferredLocations } from "./preferred-locations";
 import { attachTableStriping } from "./table-striping";
 
@@ -8,7 +9,7 @@ export const betterTable: Tweak = {
   siteId: "pinc",
   title: "Better Table",
   description:
-    "Add row striping, shorten preferred locations, and simplify column titles.",
+    "Add row striping, format driver phone numbers, shorten preferred locations, and simplify column titles.",
   pathPattern: /^\/shipments/,
   apply() {
     const cleanups: CleanupFn[] = [];
@@ -17,8 +18,10 @@ export const betterTable: Tweak = {
     };
     try {
       cleanups.push(attachTableStriping());
-      if (/^\/shipments\/?$/.test(location.pathname))
+      if (/^\/shipments\/?$/.test(location.pathname)) {
         cleanups.push(attachPreferredLocations());
+        cleanups.push(attachDriverPhone());
+      }
       cleanups.push(attachColumnTitles());
       return cleanup;
     } catch (cause) {

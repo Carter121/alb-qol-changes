@@ -216,3 +216,36 @@ export function createTextEdits() {
     },
   };
 }
+
+export function attachShipmentCellText(
+  name: string,
+  matches: (column: ShipmentColumn) => boolean,
+  transform: (value: string) => string,
+) {
+  const edits = createTextEdits();
+  const subscription = subscribeToShipmentTables({
+    name,
+    phase: "text",
+    update(tables) {
+      edits.prune();
+      for (const { table, columns } of tables) {
+        for (const [index, column] of columns.entries()) {
+          if (!matches(column)) continue;
+          for (const body of table.tBodies) {
+            for (const row of body.rows) {
+              const cells = siteCells(row);
+              if (
+                cells.length !== columns.length ||
+                cells.some((cell) => cell.colSpan !== 1 || cell.rowSpan !== 1)
+              )
+                continue;
+              edits.replace(cells[index], transform);
+            }
+          }
+        }
+      }
+    },
+    cleanup: edits.cleanup,
+  });
+  return subscription.cleanup;
+}

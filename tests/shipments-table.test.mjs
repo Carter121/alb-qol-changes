@@ -948,6 +948,50 @@ for (let legacy = 0; legacy < 4; legacy++) {
   }
 }
 
+test("Better Table formats driver phone cells and restores them when disabled", async () => {
+  const original = [
+    "\n+18015550100\n",
+    "8015550101",
+    "+442079460958",
+    "+1 (801) 555-0102",
+    "",
+  ];
+  const phoneRow = (phone, index) =>
+    rowHtml(String(index), "8015550199").replace(
+      "</tr>",
+      `<td>${phone}</td></tr>`,
+    );
+  const f = fixture(tableHtml(original.map(phoneRow).join("")));
+  try {
+    document
+      .querySelector("thead tr")
+      .insertAdjacentHTML(
+        "beforeend",
+        '<th class="sort_tag"><a href="?sort_key=custom_text17">Driver Phone #</a></th>',
+      );
+    const phones = () =>
+      Array.from(document.querySelector("tbody").rows, (row) => {
+        assert.equal(siteCells(row)[2].textContent, "8015550199");
+        return siteCells(row)[3].textContent;
+      });
+    const stop = f.start(2);
+    assert.deepEqual(phones(), [
+      "\n+1 (801) 555-0100\n",
+      "(801) 555-0101",
+      ...original.slice(2),
+    ]);
+    document
+      .querySelector("tbody")
+      .insertAdjacentHTML("beforeend", phoneRow("+18015550103", 5));
+    await tick();
+    assert.equal(phones().at(-1), "+1 (801) 555-0103");
+    stop();
+    assert.deepEqual(phones(), [...original, "+18015550103"]);
+  } finally {
+    f.close();
+  }
+});
+
 test("Better Table preserves formatting scope and cleans up after consumer errors", () => {
   const f = fixture();
   try {
