@@ -482,7 +482,7 @@ for (const paperworkFirst of [true, false])
       poll = callback;
       return 0;
     };
-    let shipments = [{ shipment_id: "SYNTHETIC-SEED" }];
+    let shipments = [{ shipment_id: "000123" }];
     globalThis.fetch = async () => ({
       ok: true,
       text: async () => JSON.stringify(shipments),
@@ -502,12 +502,13 @@ for (const paperworkFirst of [true, false])
         table = attach();
       }
       await tick();
-      shipments.push(
-        { shipment_id: "000123" },
+      shipments = [
         { shipment_id: "000456", asset_id: "3pty-FAKE" },
+        { shipment_id: "000222" },
+        { shipment_id: "000123" },
         { shipment_id: "000111" },
         { shipment_id: "000789" },
-      );
+      ];
       await poll();
       await tick();
       const inserted = document.querySelector(
@@ -521,7 +522,13 @@ for (const paperworkFirst of [true, false])
               (cell) => !cell.classList.contains("alb-qol-paperwork-column"),
             )[1].textContent,
         );
-      assert.deepEqual(ids(), ["000111", "000123", "000456", "000789"]);
+      assert.deepEqual(ids(), [
+        "000456",
+        "000222",
+        "000123",
+        "000111",
+        "000789",
+      ]);
       assert.equal(
         document.querySelector("thead tr").cells[1].textContent,
         "BOLs",
@@ -533,14 +540,15 @@ for (const paperworkFirst of [true, false])
       assert.equal(inserted.querySelectorAll("input").length, 1);
       table.cleanup();
       assert.equal(inserted.cells.length, 3);
-      shipments.push({ shipment_id: "000333" });
+      shipments.splice(3, 0, { shipment_id: "000333" });
       await poll();
       await tick();
       assert.deepEqual(ids(), [
-        "000111",
+        "000456",
+        "000222",
         "000123",
         "000333",
-        "000456",
+        "000111",
         "000789",
       ]);
       table = attach();

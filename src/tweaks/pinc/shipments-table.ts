@@ -7,12 +7,10 @@ export type ShipmentColumn = {
   header: HTMLTableCellElement;
   field: string | null;
 };
-export type ShipmentSort = { index: number; field: string; ascending: boolean };
 export type ShipmentTable = {
   table: HTMLTableElement;
   header: HTMLTableRowElement;
   columns: ShipmentColumn[];
-  sort: ShipmentSort | null;
 };
 type Consumer = {
   name: string;
@@ -55,23 +53,7 @@ function readTables(doc: Document): ShipmentTable[] {
       header: cell,
       field: linkField(cell),
     }));
-    const index = columns.findIndex((column) =>
-      column.header.classList.contains("active_sort_tag"),
-    );
-    const active = columns[index];
-    //* The sort link toggles direction; the image describes current order.
-    const image =
-      active?.header.querySelector("img")?.getAttribute("src") ?? "";
-    const ascending = image.includes("sort_asc")
-      ? true
-      : image.includes("sort_desc")
-        ? false
-        : null;
-    const sort =
-      active?.field && ascending !== null
-        ? { index, field: active.field, ascending }
-        : null;
-    return [{ table, header, columns, sort }];
+    return [{ table, header, columns }];
   });
 }
 

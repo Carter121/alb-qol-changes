@@ -12,7 +12,7 @@ export type Shipment = {
   [key: string]: unknown;
 };
 
-type FreshHandler = (fresh: Shipment[]) => void;
+type FreshHandler = (fresh: Shipment[], all: readonly Shipment[]) => void;
 
 const { log, warn, error } = createLogger("shipments-poller");
 
@@ -25,8 +25,8 @@ let pollCount = 0;
 
 //* Shared refcounted poller: starts on first subscriber, one fetch per
 //* interval regardless of subscriber count, stops and resets on last
-//* unsubscribe. Subscribers only receive shipments that appear after the
-//* poller's seed, never the backlog.
+//* unsubscribe. Fresh batches exclude the seed and include the full snapshot
+//* for consumers that need the server's order.
 export function subscribeToNewShipments(onFresh: FreshHandler): CleanupFn {
   subscribers.add(onFresh);
   if (subscribers.size === 1) void seedAndStart(++generation);
@@ -70,7 +70,7 @@ async function seedAndStart(gen: number) {
     //* One throwing subscriber must not starve the others
     subscribers.forEach((handler) => {
       try {
-        handler(fresh);
+        handler(fresh, all);
       } catch (handlerError) {
         error("subscriber threw", handlerError);
       }

@@ -2,7 +2,6 @@ import {
   siteCells,
   subscribeToShipmentTables,
   type ShipmentTable,
-  type ShipmentSort as SortState,
 } from "./shipments-table";
 import type { Tweak } from "../types";
 import { createLogger, injectHostCss } from "../helpers";
@@ -33,7 +32,8 @@ export const newCheckInRows: Tweak = {
       }
     `);
 
-    const pending: Shipment[] = [];
+    const pending = new Map<string, Shipment>();
+    let serverOrder: readonly Shipment[] = [];
     const injected: HTMLTableRowElement[] = [];
 
     const subscription = subscribeToShipmentTables({
@@ -51,12 +51,22 @@ export const newCheckInRows: Tweak = {
       cleanup() {
         injected.forEach((tr) => tr.remove());
         injected.length = 0;
-        pending.length = 0;
+        pending.clear();
+        serverOrder = [];
         removeCss();
       },
     });
-    const unsubscribe = subscribeToNewShipments((fresh) => {
-      pending.push(...fresh);
+    const unsubscribe = subscribeToNewShipments((fresh, all) => {
+      for (const shipment of fresh) {
+        if (shipment.shipment_id === undefined) {
+          warn("shipment has no shipment_id; skipping row", shipment);
+          continue;
+        }
+        const id = String(shipment.shipment_id);
+        if (!pending.has(id)) pending.set(id, shipment);
+      }
+      if (pending.size === 0) return;
+      serverOrder = all;
       subscription.refresh();
     });
 
@@ -66,98 +76,70 @@ export const newCheckInRows: Tweak = {
       log("stopped");
     };
 
-    //* Retains pending shipments until the table is usable; re-reads the
-    //* thead every time so column changes are picked up.
-    function flush({ table, columns, sort }: ShipmentTable) {
-      if (pending.length === 0) return;
+    function flush({ table, columns }: ShipmentTable) {
+      if (pending.size === 0) return;
       const tbody = table.tBodies[0];
-      if (!sort)
-        warn("could not determine sort; appending new rows at the end");
+      const rowsById = readRowsById(tbody, columns);
 
-      const batch = pending.splice(0);
-      for (const shipment of batch) {
-        insertShipment(shipment, tbody, columns, sort);
+      //* Walk backward so each matching row anchors the shipments before it.
+      let before: HTMLTableRowElement | null = null;
+      for (let index = serverOrder.length - 1; index >= 0; index--) {
+        const shipment = serverOrder[index];
+        if (shipment.shipment_id === undefined) continue;
+        const id = String(shipment.shipment_id);
+        const queued = pending.get(id);
+        pending.delete(id);
+        const existing = rowsById.get(id);
+        if (existing) {
+          before = existing;
+        } else if (queued) {
+          before = insertShipment(queued, id, tbody, columns, before);
+        }
       }
+
+      //* An older queued shipment may be absent from the latest snapshot.
+      for (const [id, shipment] of pending) {
+        if (!rowsById.has(id))
+          insertShipment(shipment, id, tbody, columns, null);
+      }
+      pending.clear();
+      serverOrder = [];
     }
 
     function insertShipment(
       shipment: Shipment,
+      id: string,
       tbody: HTMLTableSectionElement,
       columns: Column[],
-      sort: SortState | null,
+      before: HTMLTableRowElement | null,
     ) {
-      if (shipment.shipment_id === undefined) {
-        warn("shipment has no shipment_id; skipping row", shipment);
-        return;
-      }
-      const id = String(shipment.shipment_id);
-      if (rowExists(tbody, columns, id)) {
-        log(`row for shipment ${id} already present; skipping`);
-        return;
-      }
-
       const tr = buildRow(shipment, columns, id);
       injected.push(tr);
-      tbody.insertBefore(
-        tr,
-        findInsertBeforeRow(shipment, tbody, sort, columns.length),
-      );
+      tbody.insertBefore(tr, before);
       log(`inserted row for shipment ${id}`);
+      return tr;
     }
 
-    function rowExists(
-      tbody: HTMLTableSectionElement,
-      columns: Column[],
-      id: string,
-    ): boolean {
-      if (
-        tbody.querySelector(`tr[data-alb-qol-shipment-id="${CSS.escape(id)}"]`)
-      ) {
-        return true;
-      }
+    function readRowsById(tbody: HTMLTableSectionElement, columns: Column[]) {
       const idIndex = columns.findIndex((c) => c.field === "shipment_id");
-      if (idIndex === -1) return false;
-      return Array.from(tbody.rows).some((row) => {
-        const cells = siteCells(row);
-        return (
-          cells.length === columns.length &&
-          cells.every((cell) => cell.colSpan === 1 && cell.rowSpan === 1) &&
-          cells[idIndex]?.textContent?.trim() === id
-        );
-      });
-    }
-
-    //* Returns the row to insert before, or null to append
-    function findInsertBeforeRow(
-      shipment: Shipment,
-      tbody: HTMLTableSectionElement,
-      sort: SortState | null,
-      columnCount: number,
-    ): HTMLTableRowElement | null {
-      if (!sort) return null;
-      const value = getByPath(shipment, sort.field);
-      if (value === undefined) {
-        warn(
-          `sort field "${sort.field}" missing from shipment JSON; appending`,
-        );
-        return null;
-      }
-      const newKey = coerce(value, sort.field);
-      //* Empty values sort last in both directions
-      if (newKey === "") return null;
-      for (const row of Array.from(tbody.rows)) {
+      const rows = new Map<string, HTMLTableRowElement>();
+      for (const row of tbody.rows) {
+        const injectedId = row.dataset.albQolShipmentId;
+        if (injectedId !== undefined) {
+          rows.set(injectedId, row);
+          continue;
+        }
+        if (idIndex === -1) continue;
         const cells = siteCells(row);
         if (
-          cells.length !== columnCount ||
+          cells.length !== columns.length ||
           cells.some((cell) => cell.colSpan !== 1 || cell.rowSpan !== 1)
         )
           continue;
-        const rowKey = cells[sort.index]?.textContent?.trim() ?? "";
-        if (rowKey === "") return row;
-        const cmp = compareKeys(rowKey, newKey);
-        if (sort.ascending ? cmp > 0 : cmp < 0) return row;
+        const id = cells[idIndex].textContent?.trim();
+        if (id !== undefined) rows.set(id, row);
       }
-      return null;
+      return rows;
     }
 
     function buildRow(
@@ -189,7 +171,6 @@ export const newCheckInRows: Tweak = {
       return tr;
     }
 
-    //* Coercion is shared by rendering and comparison so they agree
     function coerce(value: unknown, field: string): string {
       if (value === null || value === undefined) return "";
       if (typeof value === "string") return value;
@@ -213,12 +194,6 @@ export const newCheckInRows: Tweak = {
               : undefined,
           shipment,
         );
-    }
-
-    function compareKeys(a: string, b: string): number {
-      const numeric = /^-?\d+(\.\d+)?$/;
-      if (numeric.test(a) && numeric.test(b)) return Number(a) - Number(b);
-      return a < b ? -1 : a > b ? 1 : 0;
     }
   },
 };

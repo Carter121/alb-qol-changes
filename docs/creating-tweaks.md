@@ -107,7 +107,7 @@ return subscription.cleanup;
 
 Consumers run synchronously in phase order: `rows`, `columns`, `text`, then `decoration`. Registration order breaks ties. Contexts are rebuilt before each consumer, so later phases see earlier structural edits. Updates must be idempotent; do not subscribe or request another refresh from an update. Calls to `refresh()` during dispatch are suppressed. Outside dispatch, `refresh()` updates all consumers immediately, including pending DOM changes.
 
-Each context contains `table`, `header`, native `columns` (`header` and nullable `field`), and nullable `sort` (`index`, `field`, `ascending`). The index refers to native columns, not physical cell positions. Use `siteCells(row)` to obtain matching native cells. Skip rows with mismatched cell counts or merged cells. Mark every injected header and body cell with the exported `INJECTED_COLUMN` attribute (`data-alb-qol-column`) so other consumers exclude it. Keep feature styling and data fetching in the tweak.
+Each context contains `table`, `header`, and native `columns` (`header` and nullable `field`). Use `siteCells(row)` to obtain matching native cells. Skip rows with mismatched cell counts or merged cells. Mark every injected header and body cell with the exported `INJECTED_COLUMN` attribute (`data-alb-qol-column`) so other consumers exclude it. Keep feature styling and data fetching in the tweak.
 
 `createTextEdits()` preserves descendants and event handlers. Call `prune()` each update to release detached text nodes. Its cleanup restores only text still matching its own replacement. `owns(element)` recognizes a previously renamed header when it has no sort link.
 

@@ -83,7 +83,10 @@ function fixture(html = tableHtml()) {
       return stop;
     },
     async send(fresh) {
-      shipments.push(...fresh);
+      await this.sendSnapshot([...shipments, ...fresh]);
+    },
+    async sendSnapshot(snapshot) {
+      shipments = snapshot;
       await poll();
       await tick();
     },
@@ -268,12 +271,11 @@ test("discovery, replacement, multiple tables, column identities and malformed l
     );
     header.append(header.cells[3]);
     await tick();
-    assert.equal(contexts[0].sort.index, 2);
+    assert.equal(contexts[0].columns[2].field, "shipment_id");
     header.lastElementChild.querySelector("a").href =
       "http://[?sort_key=broken";
     await tick();
     assert.equal(contexts[0].columns[2].field, null);
-    assert.equal(contexts[0].sort, null);
     header.lastElementChild.querySelector("a").removeAttribute("href");
     await tick();
     assert.equal(contexts[0].columns[2].field, null);
@@ -522,65 +524,28 @@ test("pending shipments survive absent/incomplete tables and use latest column o
   }
 });
 
-for (const [field, direction, initial, fresh, expected] of [
-  [
-    "shipment_id",
-    "asc",
-    ["2", "10", ""],
-    ["3", "1", ""],
-    ["1", "2", "3", "10", ""],
-  ],
-  [
-    "shipment_id",
-    "desc",
-    ["10", "2", ""],
-    ["3", "11", ""],
-    ["11", "10", "3", "2", ""],
-  ],
-  [
-    "asset_id",
-    "asc",
-    ["Apple", "Pear", ""],
-    ["Banana", "", "Zebra"],
-    ["Apple", "Banana", "Pear", "Zebra", "", ""],
-  ],
-  [
-    "asset_id",
-    "desc",
-    ["Pear", "Apple", ""],
-    ["Banana", "", "Zebra"],
-    ["Zebra", "Pear", "Banana", "Apple", "", ""],
-  ],
-]) {
-  test(`new rows preserve ${field} ${direction} sorting and blank placement`, async () => {
-    const f = fixture(
-      tableHtml(
-        initial.map((value) => rowHtml(value)).join(""),
-        field,
-        direction,
-      ),
+test("new rows follow a later server snapshot while waiting for the table", async () => {
+  const f = fixture("");
+  try {
+    f.start(0);
+    await tick();
+    await f.send([{ shipment_id: "3" }]);
+    await f.sendSnapshot(
+      ["11", "10", "2", "3", "5", "4"].map((shipment_id) => ({ shipment_id })),
     );
-    try {
-      f.start(0);
-      await tick();
-      await f.send(
-        fresh.map((value, index) => ({
-          shipment_id: field === "shipment_id" ? value : String(100 + index),
-          asset_id: value,
-        })),
-      );
-      assert.deepEqual(
-        Array.from(
-          document.querySelectorAll("tbody tr"),
-          (row) => siteCells(row)[1].textContent,
-        ),
-        expected,
-      );
-    } finally {
-      f.close();
-    }
-  });
-}
+    document.body.innerHTML = tableHtml(rowHtml("10") + rowHtml("5"));
+    await tick();
+    assert.deepEqual(
+      Array.from(
+        document.querySelectorAll("tbody tr"),
+        (row) => siteCells(row)[1].textContent,
+      ),
+      ["11", "10", "2", "3", "5", "4"],
+    );
+  } finally {
+    f.close();
+  }
+});
 
 test("invalid location values remain unchanged and unlinked header fallback works", () => {
   const f = fixture(tableHtml(rowHtml("000123", "Unrecognized location")));
@@ -744,7 +709,7 @@ test("tweak manager preserves stored IDs, disabled settings and remote toggles",
   }
 });
 
-test("duplicate/missing IDs, unknown sorting and unsupported rows do not corrupt insertion", async () => {
+test("server order handles duplicate or missing IDs and skips unsupported rows", async () => {
   const f = fixture(tableHtml(rowHtml("000123"), "shipment_id", "unknown"));
   const originalWarn = console.warn;
   const warnings = [];
@@ -769,9 +734,6 @@ test("duplicate/missing IDs, unknown sorting and unsupported rows do not corrupt
     assert.ok(
       warnings.some((args) => args.join(" ").includes("no shipment_id")),
     );
-    assert.ok(
-      warnings.some((args) => args.join(" ").includes("determine sort")),
-    );
     document.querySelector("tbody tr").outerHTML =
       '<tr><td colspan="3">Empty</td></tr>';
     document.querySelector("thead img").src = "/sort_asc.png";
@@ -783,7 +745,7 @@ test("duplicate/missing IDs, unknown sorting and unsupported rows do not corrupt
         document.querySelectorAll("[data-alb-qol-shipment-id]"),
         (row) => row.dataset.albQolShipmentId,
       ),
-      ["000222", "000456"],
+      ["000456", "000222"],
     );
   } finally {
     console.warn = originalWarn;
